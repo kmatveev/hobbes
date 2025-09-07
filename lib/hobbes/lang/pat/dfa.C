@@ -723,7 +723,7 @@ MStatePtr makeRegexState(MDFA* dfa, const PatternRows& ps, size_t c) {
       var(regexFn.fname, dfa->rootLA), list(
         var(rcaptureVar, dfa->rootLA),
         var(oarrayVar, dfa->rootLA),
-        constant(static_cast<long>(0), dfa->rootLA),
+        constant(static_cast<int64_t>(0), dfa->rootLA),
         fncall(var("size", dfa->rootLA), list(var(oarrayVar, dfa->rootLA)), dfa->rootLA),
         constant(static_cast<int>(0), dfa->rootLA)),
       dfa->rootLA
@@ -1285,14 +1285,14 @@ bool shouldInlineState(const MDFA* dfa, stateidx_t state) {
   // stop adding state related IR code into current function, if the state value
   // is above `HOBBES_DFA_INLINE_THRESHOLD`. If a DFA has too many states,
   // otherwise IR function can get so large that llvm cannot handle
-  static const auto inlineThreshold = [] {
+  static const size_t inlineThreshold = [] {
     // setting it to 0 makes no threshold. It must be a non-negative integer
     const char* v = std::getenv("HOBBES_DFA_INLINE_THRESHOLD");
     if (v == nullptr) {
-      return 2'000UL; // empirical data
+      return static_cast<size_t>(2'000UL); // empirical data
     }
-    static_assert(std::is_same<stateidx_t, unsigned long>::value, "");
-    const auto i = strtoul(v, nullptr, 10);
+    static_assert(std::is_same<stateidx_t, size_t>::value, "");
+    const size_t i = strtoul(v, nullptr, 10);
     return i == 0 ? std::numeric_limits<stateidx_t>::max() : i;
   }();
 
@@ -1407,8 +1407,8 @@ RowResults findRowResults(MDFA* dfa, stateidx_t s) {
   return result;
 }
 
-long asLongRep(long*  x) { return *x; }
-long asLongRep(double x) { return asLongRep(reinterpret_cast<long*>(&x)); }
+int64_t asLongRep(int64_t*  x) { return *x; }
+int64_t asLongRep(double x) { return asLongRep(reinterpret_cast<int64_t*>(&x)); }
 
 // derive a primitive search function from a DFA (or sub-DFA) that contains _only_ primitive tests
 using Args = std::map<std::string, llvm::Value *>;

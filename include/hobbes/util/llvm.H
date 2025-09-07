@@ -9,17 +9,11 @@
 
 #include <llvm/Config/llvm-config.h>
 
-#if LLVM_VERSION_MAJOR != 3 && LLVM_VERSION_MAJOR != 4 && LLVM_VERSION_MAJOR != 6 && LLVM_VERSION_MAJOR != 8 && LLVM_VERSION_MAJOR != 9 && LLVM_VERSION_MAJOR != 10 && LLVM_VERSION_MAJOR != 11 && LLVM_VERSION_MAJOR != 12
-#error "I don't know how to use this version of LLVM"
-#endif
-
 #include <hobbes/lang/type.H>
 #include <hobbes/util/ptr.H>
 #include <hobbes/util/array.H>
 
-#if LLVM_VERSION_MAJOR >= 11
 #include <hobbes/lang/type.H>
-#endif
 
 #include <llvm/Analysis/Passes.h>
 #include <llvm/IR/DataLayout.h>
@@ -30,40 +24,26 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/Signals.h>
-#include <llvm/Support/TargetRegistry.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <llvm/Transforms/Vectorize.h>
-#if LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR == 6 || LLVM_VERSION_MAJOR <= 8
-#  include <llvm/Bitcode/BitstreamReader.h>
-#  include <llvm/Bitcode/BitstreamWriter.h>
-#elif  LLVM_VERSION_MAJOR <= 12
-#  include <llvm/Bitstream/BitstreamReader.h>
-#  include <llvm/Bitstream/BitstreamWriter.h>
-#else
-#  include <llvm/Bitcode/ReaderWriter.h>
-#endif
+/* #include <llvm/Transforms/Vectorize.h> */
+#include <llvm/Bitstream/BitstreamReader.h>
+#include <llvm/Bitstream/BitstreamWriter.h>
 
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/JITEventListener.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 
-#if LLVM_VERSION_MINOR == 3
-#  include <llvm/Analysis/Verifier.h>
-#  include <llvm/PassManager.h>
-#elif LLVM_VERSION_MINOR >= 5 || LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR == 6 || LLVM_VERSION_MAJOR >= 8
-#  include <llvm/IR/Verifier.h>
-#  include <llvm/ExecutionEngine/SectionMemoryManager.h>
-#  include <llvm/IR/LegacyPassManager.h>
-#  include <llvm/Object/ELFObjectFile.h>
-#endif
+#include <llvm/IR/Verifier.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Object/ELFObjectFile.h>
 
-#if LLVM_VERSION_MAJOR >= 11
-#  include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
-#endif
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
 #pragma GCC diagnostic pop
 
@@ -78,7 +58,6 @@ using int128_t = __int128;
       static_cast<uint64_t>(static_cast<unsigned __int128>(x) >> 64U)};        \
   const auto a_a_a = llvm::ArrayRef<uint64_t> { aa_aa_aa }
 
-#if LLVM_VERSION_MAJOR >= 11
 inline llvm::orc::ThreadSafeContext& threadSafeContext() {
   static auto c = llvm::orc::ThreadSafeContext(std::make_unique<llvm::LLVMContext>());
   return c;
@@ -134,8 +113,8 @@ inline llvm::Type* doubleType() {
   return withContext([](llvm::LLVMContext& c) { return llvm::Type::getDoubleTy(c); });
 }
 
-inline llvm::PointerType* ptrType(llvm::Type* ty) {
-  return llvm::PointerType::getUnqual(ty);
+inline llvm::PointerType* ptrType() {
+  return withContext([](llvm::LLVMContext& c) { return llvm::PointerType::getUnqual(c); });
 }
 
 inline llvm::ArrayType* arrayType(llvm::Type* ty, size_t sz) {
@@ -222,7 +201,7 @@ inline llvm::Constant* cvalue(unsigned int x) {
   return llvm::Constant::getIntegerValue(intType(), llvm::APInt(32, x, true));
 }
 
-inline llvm::Constant* cvalue(long x) {
+inline llvm::Constant* cvalue(int64_t x) {
   return llvm::Constant::getIntegerValue(longType(), llvm::APInt(64, x, true));
 }
 
@@ -278,7 +257,7 @@ inline llvm::ConstantInt* civalue(unsigned int x) {
   });
 }
 
-inline llvm::ConstantInt* civalue(long x) {
+inline llvm::ConstantInt* civalue(long long x) {
   return withContext([x](llvm::LLVMContext& c) {
     return llvm::ConstantInt::get(llvm::IntegerType::get(c, 64), static_cast<uint64_t>(x));
   });
@@ -290,205 +269,6 @@ inline llvm::ConstantInt* civalue(int128_t x) {
     return llvm::ConstantInt::get(c, llvm::APInt(128, a_a_a));
   });
 }
-#else
-// keep one context per thread to avoid global locking
-// NOTE: temporarily reverting to one global context
-//       this is because we have some cases where we partially compile in one thread and then resume compiling in another thread
-//       we currently keep a global lock on compilers anyway
-inline llvm::LLVMContext& context() {
-  static llvm::LLVMContext ctx;
-  return ctx;
-}
-
-template <typename Fn> auto withContext(Fn fn) -> decltype(auto) {
-  return fn(context());
-}
-
-typedef std::vector<llvm::Type*>     Types;
-typedef std::vector<llvm::Constant*> Constants;
-typedef std::vector<llvm::Value*>    Values;
-
-// type utilities
-inline llvm::Type* voidType() {
-  return llvm::Type::getVoidTy(context());
-}
-
-inline llvm::Type* boolType() {
-  return llvm::Type::getInt1Ty(context());
-}
-
-inline llvm::Type* charType() {
-  return llvm::Type::getInt8Ty(context());
-}
-
-inline llvm::Type* byteType() {
-  return charType();
-}
-
-inline llvm::Type* shortType() {
-  return llvm::Type::getInt16Ty(context());
-}
-
-inline llvm::Type* intType() {
-  return llvm::Type::getInt32Ty(context());
-}
-
-inline llvm::Type* longType() {
-  return llvm::Type::getInt64Ty(context());
-}
-
-inline llvm::Type* int128Type() {
-  return llvm::Type::getIntNTy(context(), 128);
-}
-
-inline llvm::Type* floatType() {
-  return llvm::Type::getFloatTy(context());
-}
-
-inline llvm::Type* doubleType() {
-  return llvm::Type::getDoubleTy(context());
-}
-
-inline llvm::PointerType* ptrType(llvm::Type* ty) {
-  return llvm::PointerType::getUnqual(ty);
-}
-
-inline llvm::ArrayType* arrayType(llvm::Type* ty, size_t sz) {
-  // we can be a little dishonest in describing the type of arrays of unit, since LLVM barfs on arrays of unit
-  // and we should never need to look at the "data" in an array of unit values _anyway_!
-  return llvm::ArrayType::get(ty->isVoidTy() ? boolType() : ty, static_cast<uint64_t>(sz));
-}
-
-inline llvm::StructType* packedRecordType(const Types& tys) {
-  return llvm::StructType::get(context(), tys, true);
-}
-
-inline llvm::StructType* recordType(const Types& tys) {
-  return llvm::StructType::get(context(), tys);
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0) {
-  return recordType(list(t0));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1) {
-  return recordType(list(t0, t1));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1, llvm::Type* t2) {
-  return recordType(list(t0, t1, t2));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1, llvm::Type* t2, llvm::Type* t3) {
-  return recordType(list(t0, t1, t2, t3));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1, llvm::Type* t2, llvm::Type* t3, llvm::Type* t4) {
-  return recordType(list(t0, t1, t2, t3, t4));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1, llvm::Type* t2, llvm::Type* t3, llvm::Type* t4, llvm::Type* t5) {
-  return recordType(list(t0, t1, t2, t3, t4, t5));
-}
-
-inline llvm::StructType* recordType(llvm::Type* t0, llvm::Type* t1, llvm::Type* t2, llvm::Type* t3, llvm::Type* t4, llvm::Type* t5, llvm::Type* t6) {
-  return recordType(list(t0, t1, t2, t3, t4, t5, t6));
-}
-
-inline llvm::FunctionType* functionType(const Types& argTys, llvm::Type* rty) {
-  return llvm::FunctionType::get(rty, argTys, false);
-}
-
-inline llvm::StructType* varArrayType(llvm::Type* elemty, size_t sz = 1) {
-  return recordType(longType(), arrayType(elemty, sz));
-}
-
-// casting
-inline llvm::Value* cast(llvm::IRBuilder<>* b, llvm::Type* ty, llvm::Value* v) {
-  return b->CreateBitCast(v, ty);
-}
-
-inline llvm::Constant* ccast(llvm::Type* ty, llvm::Constant* v) {
-  return llvm::ConstantExpr::getBitCast(v, ty);
-}
-
-// constant utilities
-inline llvm::Constant* cvalue(bool x) {
-  return llvm::Constant::getIntegerValue(boolType(), llvm::APInt(1, x ? 1 : 0, false));
-}
-
-inline llvm::Constant* cvalue(char x) {
-  return llvm::Constant::getIntegerValue(charType(), llvm::APInt(8, x, true));
-}
-
-inline llvm::Constant* cvalue(unsigned char x) {
-  return llvm::Constant::getIntegerValue(charType(), llvm::APInt(8, x, false));
-}
-
-inline llvm::Constant* cvalue(short x) {
-  return llvm::Constant::getIntegerValue(shortType(), llvm::APInt(16, x, false));
-}
-
-inline llvm::Constant* cvalue(int x) {
-  return llvm::Constant::getIntegerValue(intType(), llvm::APInt(32, x, true));
-}
-
-inline llvm::Constant* cvalue(unsigned int x) {
-  return llvm::Constant::getIntegerValue(intType(), llvm::APInt(32, x, true));
-}
-
-inline llvm::Constant* cvalue(long x) {
-  return llvm::Constant::getIntegerValue(longType(), llvm::APInt(64, x, true));
-}
-
-inline llvm::Constant* cvalue(int128_t x) {
-  INT128_TO_UINT64_ARRAY_REF_NAMED_a_a_a(x);
-  return llvm::Constant::getIntegerValue(int128Type(), llvm::APInt(128, a_a_a));
-}
-
-inline llvm::Constant* cvalue(float x) {
-  return llvm::ConstantFP::get(context(), llvm::APFloat(x));
-}
-
-inline llvm::Constant* cvalue(double x) {
-  return llvm::ConstantFP::get(context(), llvm::APFloat(x));
-}
-
-// constant int utilities (different than constants to LLVM!)
-inline llvm::ConstantInt* civalue(bool x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 1), static_cast<uint64_t>(x ? 1 : 0));
-}
-
-inline llvm::ConstantInt* civalue(char x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 8), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(unsigned char x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 8), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(short x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 16), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(int x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 32), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(unsigned int x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 32), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(long x) {
-  return llvm::ConstantInt::get(llvm::IntegerType::get(context(), 64), static_cast<uint64_t>(x));
-}
-
-inline llvm::ConstantInt* civalue(int128_t x) {
-  INT128_TO_UINT64_ARRAY_REF_NAMED_a_a_a(x);
-  return llvm::ConstantInt::get(context(), llvm::APInt(128, a_a_a));
-}
-
-#endif
 
 #undef INT128_TO_UINT64_ARRAY_REF_NAMED_a_a_a
 
@@ -568,7 +348,7 @@ inline llvm::Constant* constArray(llvm::Module* m, const Constants& cs, llvm::Ty
   llvm::ArrayType*  aty  = arrayType(elemTy, cs.size());
   llvm::StructType* saty = varArrayType(elemTy, cs.size());
 
-  long      arrayLen = cs.size();
+  long long arrayLen = cs.size();
   Constants ncs      = elemTy->isVoidTy() ? Constants() : cs;
 
   if (boxAsGlobalRefs) {
@@ -584,10 +364,9 @@ inline llvm::Value* tryMkConstVarArray(llvm::IRBuilder<>* b, llvm::Module* m, ll
     return nullptr;
   } else {
     llvm::StructType* saty = varArrayType(elemTy, cs.size());
-    llvm::StructType* caty = varArrayType(elemTy);
 
     return
-      cast(b, ptrType(caty),
+      cast(b, ptrType(),
         new llvm::GlobalVariable(
           *m,
           saty,
@@ -608,14 +387,7 @@ inline llvm::Constant* padding(size_t len) {
 }
 
 inline llvm::Value* memCopy(llvm::IRBuilder<>* b, llvm::Value* dst, uint32_t dstAlign, llvm::Value* src, uint32_t srcAlign, llvm::Value* sz) {
-#if LLVM_VERSION_MAJOR == 3 || LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR == 5 || LLVM_VERSION_MAJOR <= 6
-  (void)dstAlign;
-  return b->CreateMemCpy(dst, src, sz, srcAlign);
-#elif LLVM_VERSION_MAJOR <= 9
-  return b->CreateMemCpy(dst, dstAlign, src, srcAlign, sz);
-#elif LLVM_VERSION_MAJOR <= 12
   return b->CreateMemCpy(dst, llvm::MaybeAlign(dstAlign), src, llvm::MaybeAlign(srcAlign), sz);
-#endif
 }
 
 inline llvm::Value* memCopy(llvm::IRBuilder<>* b, llvm::Value* dst, uint32_t dstAlign, llvm::Value* src, uint32_t srcAlign, unsigned int sz) {
@@ -630,7 +402,7 @@ inline Constants mergePadding(const Constants& cs, const Record::Members& ms) {
     if (m->field[0] == '.' && m->field[1] == 'p') {
       size_t plen = 0;
       if (auto* fa = is<FixedArray>(m->type)) {
-        long asz = fa->requireLength();
+        int64_t asz = fa->requireLength();
         plen = asz < 0 ? 0 : static_cast<size_t>(asz);
       } else {
         throw std::runtime_error("Cannot derive padding for pad field with non-padding type (internal error)");
@@ -707,42 +479,34 @@ inline llvm::Value* tryMkConstRecord(llvm::IRBuilder<>*, llvm::Module* m, const 
 }
 
 // pointer / GEP utilities
-inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Value* p, llvm::Value* o0) {
+inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Type* t, llvm::Value* p, llvm::Value* o0) {
   std::vector<llvm::Value*> idxs;
   idxs.push_back(o0);
-  return b->CreateGEP(p, idxs);
+  return b->CreateGEP(t, p, idxs);
 }
 
-inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Value* p, int o0) {
-  return offset(b, p, cvalue(o0));
+inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Type* t, llvm::Value* p, int o0) {
+  return offset(b, t, p, cvalue(o0));
 }
 
-inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Value* p, int o0, int o1) {
+inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Type* t, llvm::Value* p, int o0, int o1) {
   std::vector<llvm::Value*> idxs;
   idxs.push_back(cvalue(o0));
   idxs.push_back(cvalue(o1));
-  return b->CreateGEP(p, idxs);
+  return b->CreateGEP(t, p, idxs);
 }
 
-inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Value* p, int o0, llvm::Value* o1) {
+inline llvm::Value* offset(llvm::IRBuilder<>* b, llvm::Type* t, llvm::Value* p, int o0, llvm::Value* o1) {
   std::vector<llvm::Value*> idxs;
   idxs.push_back(cvalue(o0));
   idxs.push_back(o1);
-  return b->CreateGEP(p, idxs);
+  return b->CreateGEP(t, p, idxs);
 }
 
-inline llvm::Value* structOffset(llvm::IRBuilder<>* b, llvm::Value* p, unsigned int fieldOffset) {
-#if LLVM_VERSION_MINOR == 7
-  // don't pass nullptr? (http://reviews.llvm.org/rL233938)
-  return b->CreateStructGEP(nullptr, p, fieldOffset);
-#elif LLVM_VERSION_MINOR >= 8 || LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR == 6
-  return b->CreateStructGEP(reinterpret_cast<llvm::PointerType*>(p->getType())->getElementType(), p, fieldOffset);
-#else
-  return b->CreateStructGEP(p, fieldOffset);
-#endif
+inline llvm::Value* structOffset(llvm::IRBuilder<>* b, llvm::Type* t, llvm::Value* p, unsigned int fieldOffset) {
+  return b->CreateStructGEP(t, p, fieldOffset);
 }
 
-#if LLVM_VERSION_MINOR >= 6 || LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR == 6 || LLVM_VERSION_MAJOR >= 8
 inline llvm::ExecutionEngine* makeExecutionEngine(llvm::Module* m, llvm::SectionMemoryManager* smm) {
   std::string err;
   llvm::ExecutionEngine* ee =
@@ -756,93 +520,21 @@ inline llvm::ExecutionEngine* makeExecutionEngine(llvm::Module* m, llvm::Section
   }
   return ee;
 }
-#elif LLVM_VERSION_MINOR == 3 or LLVM_VERSION_MINOR == 5
-inline llvm::ExecutionEngine* makeExecutionEngine(llvm::Module* m, llvm::SectionMemoryManager*) {
-  std::string err;
-  llvm::ExecutionEngine* ee =
-    llvm::EngineBuilder(m)
-      .setErrorStr(&err)
-      .create();
 
-  if (!ee) {
-    throw std::runtime_error("Internal error, failed to allocate execution engine with error: " + err);
-  }
-  return ee;
-}
-#endif
-
-#if LLVM_VERSION_MAJOR < 11
-inline llvm::Function* externDecl(llvm::Function* remoteFn, llvm::Module* thisModule) {
-  if (llvm::Function* ef = thisModule->getFunction(remoteFn->getName())) {
-    return ef;
-  } else {
-    return llvm::Function::Create(remoteFn->getFunctionType(), llvm::Function::ExternalLinkage, remoteFn->getName(), thisModule);
-  }
-}
-#endif
-
-#if LLVM_VERSION_MAJOR < 11
-const size_t FUNCTION_SIZE_THRESHOLD = 64;
-inline llvm::Function* cloneFunction(llvm::Function *f, llvm::Module *targetMod) {
-  using namespace llvm;
-  if (f->isDeclaration())
-    return nullptr;
-
-  // By counting the number of instructions, we can have a rough estimation of the function size,
-  // based on which we can decide whether to "copy" the function between modules. The actual decision
-  // of inlining is up to LLVM.
-  auto iInst = llvm::inst_begin(f);
-  auto iInstEnd = llvm::inst_end(f);
-  for (size_t i = 0; i < FUNCTION_SIZE_THRESHOLD; i++) {
-    if (++iInst == iInstEnd)
-      break;
-  }
-  if (iInst != iInstEnd)
-    return nullptr;
-
-  ValueToValueMapTy vmap;
-  SmallVector<ReturnInst*, 8> returns;
-  Function *newF = Function::Create(f->getFunctionType(), f->getLinkage(), f->getName(), targetMod);
-  Function::arg_iterator iDest = newF->arg_begin();
-  for (const Argument &arg : f->args()) {
-    iDest->setName(arg.getName());
-    vmap[&arg] = &*iDest++;
-  }
-
-  CloneFunctionInto(newF, f, vmap, false, returns);
-  return newF;
-}
-#endif
 
 inline llvm::Value* fncall(llvm::IRBuilder<>* b, llvm::Value* vfn, llvm::Type* tfn, const Values& args) {
     (void)tfn;
-#if LLVM_VERSION_MINOR >= 6 || LLVM_VERSION_MAJOR == 4 || LLVM_VERSION_MAJOR <= 6
-  llvm::Module* thisMod = b->GetInsertBlock()->getParent()->getParent();
-
-  llvm::Function* fn = llvm::dyn_cast<llvm::Function>(vfn);
-  if (!fn || fn->getParent() == thisMod) {
-    // same module or local variable, all is well
-    return b->CreateCall(vfn, args);
-  } else {
-    // looks like we're trying to make a call to a function in another module
-    if (auto newF = cloneFunction(fn, thisMod))
-      return b->CreateCall(newF, args);
-    return b->CreateCall(externDecl(fn, thisMod), args);
-  }
-#elif LLVM_VERSION_MAJOR <= 10
-  return b->CreateCall(vfn, args);
-#elif LLVM_VERSION_MAJOR <= 12
   if (auto *ty = llvm::dyn_cast<llvm::FunctionType>(tfn)) {
     auto *inst =  b->CreateCall(ty, vfn, args);
     if (ty->getReturnType() == boolType()) {
-      inst->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::ZExt);
+      inst->addRetAttr(llvm::Attribute::ZExt);
     }
     return inst;
   } else {
     throw std::runtime_error("fncall(...) invoked on non-function type (internal error)");
   }
   return nullptr;
-#endif
+
 }
 
 inline llvm::Value* fncall(llvm::IRBuilder<>* b, llvm::Value* fn, llvm::Type* tfn, llvm::Value* arg) {
@@ -863,28 +555,16 @@ inline void maybeInlineFunctionsIn(llvm::Module& m) {
       return static_cast<unsigned>(strtoul(v, nullptr, 10));
     }();
 
-    // early llvm versions either don't have
-    // llvm::Function::getInstructionCount() or failed to make it const, so we
-    // provide our simplified version
-    static const auto getFunctionInstructionCount =
-        [](const llvm::Function& f) {
-          unsigned num = 0;
-          for (const auto& b : f.getBasicBlockList()) {
-            num += b.size();
-          }
-          return num;
-        };
-
     // if any functions in this module has instruction number above threshold,
     // then should not inline anything
     return std::none_of(m.begin(), m.end(), [](const llvm::Function& f) {
-      return getFunctionInstructionCount(f) > fnInliningThreshold;
+      return f.getInstructionCount() > fnInliningThreshold;
     });
   };
 
   if (allFunctionsAreSmall(m)) {
     auto mpm = llvm::legacy::PassManager();
-    mpm.add(llvm::createFunctionInliningPass());
+    // mpm.add(llvm::createFunctionInliningPass());
     mpm.run(m);
   }
 }

@@ -347,7 +347,7 @@ public:
   const MonoTypePtr& type() const;
   const MonoTypePtr& length() const;
 
-  long requireLength() const;
+  int64_t requireLength() const;
 
   static const int type_case_id = 4;
 
@@ -562,16 +562,16 @@ class TLong : public MonoTypeCase<TLong> {
 public:
   void show(std::ostream& out) const override;
 
-  long value() const;
+  int64_t value() const;
 
   static const int type_case_id = 11;
 
-  static MonoTypePtr make(long);
+  static MonoTypePtr make(int64_t);
 private:
-  long x;
+  int64_t x;
 
   friend class MonoType;
-  TLong(long x);
+  TLong(int64_t x);
 };
 
 // a type-level abstraction
@@ -1148,7 +1148,7 @@ inline MonoTypePtr tapp(const MonoTypePtr& f, const MonoTypes& args) {
   return TApp::make(f, args);
 }
 
-inline MonoTypePtr tlong(long x) {
+inline MonoTypePtr tlong(int64_t x) {
   return TLong::make(x);
 }
 

@@ -34,9 +34,9 @@ int str2int(const std::string& s) {
   }
 }
 
-long str2long(const std::string& s) {
+int64_t str2long(const std::string& s) {
   try {
-    return std::stol(s);
+    return std::stoll(s);
   } catch (const std::out_of_range&) {
     throw make_err(s);
   }

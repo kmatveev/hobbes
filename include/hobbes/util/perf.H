@@ -2,6 +2,8 @@
 #ifndef HOBBES_UTIL_PERF_HPP_INCLUDED
 #define HOBBES_UTIL_PERF_HPP_INCLUDED
 
+#define _POSIX_C_SOURCE 3
+
 #include <ctime>
 #include <hobbes/util/os.H>
 #include <iostream>

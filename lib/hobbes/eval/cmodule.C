@@ -1,7 +1,4 @@
 
-#include <deque>
-#include <dlfcn.h>
-#include <glob.h>
 #include <hobbes/eval/cc.H>
 #include <hobbes/eval/cmodule.H>
 #include <hobbes/lang/module.H>
@@ -9,9 +6,17 @@
 #include <hobbes/lang/type.H>
 #include <hobbes/lang/typeinf.H>
 #include <hobbes/util/array.H>
+#include <hobbes/util/os.H>
 #include <hobbes/util/str.H>
+#include <deque>
 #include <memory>
 #include <stdexcept>
+
+#if defined(BUILD_LINUX) || defined (BUILD_OSX)
+#include <dlfcn.h>
+#include <glob.h>
+#elif defined(BUILD_MINGW)
+#endif
 
 namespace hobbes {
 
@@ -24,6 +29,7 @@ bool fileExists(const std::string &fname) {
   return true;
 }
 
+#if defined(BUILD_LINUX) || defined (BUILD_OSX)
 bool importObject(cc *e, const std::string &sopath) {
   if (!fileExists(sopath)) {
     return false;
@@ -47,6 +53,15 @@ bool importObject(cc *e, const std::string &sopath) {
     return true;
   }
 }
+#elif defined(BUILD_MINGW)
+bool importObject(cc *e, const std::string &sopath) {
+  if (!fileExists(sopath)) {
+    return false;
+  } else {
+    return false;
+  }
+}
+#endif
 
 bool importScript(cc *e, const std::string &fname) {
   if (!fileExists(fname)) {

@@ -196,7 +196,7 @@ class dbloadVF : public op {
       if (hasPointerRep(rty)) {
         return c->builder()->CreateBitCast(allocv, toLLVM(rty, true));
       } else {
-        return c->builder()->CreateLoad(c->builder()->CreateBitCast(allocv, ptrType(toLLVM(rty, true))));
+        return c->builder()->CreateLoad(toLLVM(rty, true), c->builder()->CreateBitCast(allocv, ptrType()));
       }
     });
   }
@@ -232,7 +232,7 @@ class dbstoreVF : public op {
       if (hasPointerRep(sty)) {
         allocv = c->builder()->CreateBitCast(allocv, toLLVM(sty, true));
       } else {
-        allocv = c->builder()->CreateBitCast(allocv, ptrType(toLLVM(sty, true)));
+        allocv = c->builder()->CreateBitCast(allocv, ptrType());
       }
 
       if (isLargeType(sty)) {
@@ -276,17 +276,17 @@ struct dbloadF : public op {
         llvm::Function* f = c->lookupFunction(".dbloadarr");
         if (!f) { throw std::runtime_error("Expected 'dbloadarr' function as call"); }
 
-        return c->builder()->CreateBitCast(fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<long>(storageSizeOf(t->type()))))), toLLVM(rty, true));
+        return c->builder()->CreateBitCast(fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<int64_t>(storageSizeOf(t->type()))))), toLLVM(rty, true));
       } else {
         llvm::Function* f = c->lookupFunction(".dbloadv");
         if (!f) { throw std::runtime_error("Expected 'dbloadv' function as call"); }
 
-        llvm::Value* allocv = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<long>(storageSizeOf(rty)))));
+        llvm::Value* allocv = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<int64_t>(storageSizeOf(rty)))));
 
         if (hasPointerRep(rty)) {
           return c->builder()->CreateBitCast(allocv, toLLVM(rty, true));
         } else {
-          return c->builder()->CreateLoad(c->builder()->CreateBitCast(allocv, ptrType(toLLVM(rty, true))));
+          return c->builder()->CreateLoad(toLLVM(rty, true), c->builder()->CreateBitCast(allocv, ptrType()));
         }
       }
     });
@@ -321,17 +321,17 @@ struct dbloadPF : public op {
         llvm::Function* f = c->lookupFunction(".dbloadarr");
         if (!f) { throw std::runtime_error("Expected 'dbloadarr' function as call"); }
 
-        return c->builder()->CreateBitCast(fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<long>(storageSizeOf(a->type()))))), toLLVM(rty, true));
+        return c->builder()->CreateBitCast(fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<int64_t>(storageSizeOf(a->type()))))), toLLVM(rty, true));
       } else {
         llvm::Function* f = c->lookupFunction(".dbloadv");
         if (!f) { throw std::runtime_error("Expected 'dbloadv' function as call"); }
 
-        llvm::Value* allocv = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<long>(storageSizeOf(rty)))));
+        llvm::Value* allocv = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<int64_t>(storageSizeOf(rty)))));
 
         if (hasPointerRep(rty)) {
           return c->builder()->CreateBitCast(allocv, toLLVM(rty, true));
         } else {
-          return c->builder()->CreateLoad(c->builder()->CreateBitCast(allocv, ptrType(toLLVM(rty, true))));
+          return c->builder()->CreateLoad(toLLVM(rty, true), c->builder()->CreateBitCast(allocv, ptrType()));
         }
       }
     });
@@ -403,14 +403,14 @@ struct dbunloadF : public op {
         llvm::Function* f = c->lookupFunction(".dbunloadarr");
         if (!f) { throw std::runtime_error("Expected 'dbunloadarr' function as call"); }
 
-        return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, val, cvalue(static_cast<long>(storageSizeOf(a->type())))));
+        return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, val, cvalue(static_cast<int64_t>(storageSizeOf(a->type())))));
       } else if (!hasPointerRep(tys[1])) {
         return cvalue(true);
       } else {
         llvm::Function* f = c->lookupFunction(".dbunloadv");
         if (!f) { throw std::runtime_error("Expected 'dbunloadv' function as call"); }
 
-        return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, val, cvalue(static_cast<long>(storageSizeOf(tys[1])))));
+        return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, val, cvalue(static_cast<int64_t>(storageSizeOf(tys[1])))));
       }
     });
   }
@@ -440,7 +440,7 @@ struct dballocF : public op {
 
     size_t sz = storageSizeOf(frefType(rty));
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(sz)), cvalue(static_cast<long>(alignment(frefType(rty))))));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(sz)), cvalue(static_cast<int64_t>(alignment(frefType(rty))))));
     });
   }
 
@@ -468,11 +468,11 @@ struct dbstoreF : public op {
 
       size_t sz = storageSizeOf(frefType(rty));
       return withContext([&](auto&) {
-        llvm::Value* id = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(sz)), cvalue(static_cast<long>(alignment(frefType(rty))))));
+        llvm::Value* id = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(sz)), cvalue(static_cast<int64_t>(alignment(frefType(rty))))));
 
         if (!isUnit(tys[0])) {
-          llvm::Value* p = fncall(c->builder(), dblf, dblf->getFunctionType(), list<llvm::Value*>(db, id, cvalue(static_cast<long>(sz))));
-          memCopy(c->builder(), p, 8, c->builder()->CreateBitCast(v, ptrType(charType())), 8, sz);
+          llvm::Value* p = fncall(c->builder(), dblf, dblf->getFunctionType(), list<llvm::Value*>(db, id, cvalue(static_cast<int64_t>(sz))));
+          memCopy(c->builder(), p, 8, c->builder()->CreateBitCast(v, ptrType()), 8, sz);
         }
 
         return id;
@@ -504,11 +504,11 @@ struct dbstorePF : public op {
 
       size_t sz = storageSizeOf(frefType(rty));
       return withContext([&](auto&) {
-        llvm::Value* id = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(sz)), cvalue(static_cast<long>(alignment(frefType(rty))))));
+        llvm::Value* id = fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(sz)), cvalue(static_cast<int64_t>(alignment(frefType(rty))))));
 
         if (!isUnit(tys[1])) {
-          llvm::Value* p = fncall(c->builder(), dblf, dblf->getFunctionType(), list<llvm::Value*>(db, id, cvalue(static_cast<long>(sz))));
-          memCopy(c->builder(), p, 8, c->builder()->CreateBitCast(v, ptrType(charType())), 8, sz);
+          llvm::Value* p = fncall(c->builder(), dblf, dblf->getFunctionType(), list<llvm::Value*>(db, id, cvalue(static_cast<int64_t>(sz))));
+          memCopy(c->builder(), p, 8, c->builder()->CreateBitCast(v, ptrType()), 8, sz);
         }
 
         return id;
@@ -541,7 +541,7 @@ struct dballocArrF : public op {
 
     size_t elemsz = storageSizeOf(arrType(frt.first));
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(elemsz)), len));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(elemsz)), len));
     });
   }
 
@@ -563,7 +563,7 @@ struct dballocArrPF : public op {
 
     size_t elemsz = storageSizeOf(arrType(frefType(rty)));
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(elemsz)), len));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(elemsz)), len));
     });
   }
 
@@ -592,7 +592,7 @@ struct dbarrCapacityF : public op {
 
     size_t elemsz = storageSizeOf(darrType(frt.first));
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(elemsz)), off));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(elemsz)), off));
     });
   }
 
@@ -614,7 +614,7 @@ struct dbarrCapacityPF : public op {
 
     size_t elemsz = storageSizeOf(darrType(frefType(tys[1])));
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<long>(elemsz)), off));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, cvalue(static_cast<int64_t>(elemsz)), off));
     });
   }
 
@@ -628,7 +628,7 @@ struct dbarrCapacityPF : public op {
 };
 
 // create a new structured storage file with the given name and the given type structure
-long writeFileRT(const array<char>* fname, long tydef) {
+int64_t writeFileRT(const array<char>* fname, long tydef) {
   auto*       result = new writer(makeStdString(fname));
   MonoTypeSubst fdefs  = result->signature();
   const auto* rty    = reinterpret_cast<const Record*>(tydef);
@@ -645,7 +645,7 @@ long writeFileRT(const array<char>* fname, long tydef) {
     result->pushOffset(result->unsafeLookupOffset(m.field, m.type), m.type);
   }
 
-  return reinterpret_cast<long>(result);
+  return reinterpret_cast<int64_t>(result);
 }
 
 // signal an update in a file
@@ -671,7 +671,7 @@ struct signalUpdateF : public op {
 };
 
 // read an existing structured storage file with the given name and the given type structure
-long readFileRT(const array<char>* fname, long tydef) {
+int64_t readFileRT(const array<char>* fname, long tydef) {
   auto*       result = new reader(makeStdString(fname));
   MonoTypeSubst fdefs  = result->signature();
   const auto* rty    = reinterpret_cast<const Record*>(tydef);
@@ -691,7 +691,7 @@ long readFileRT(const array<char>* fname, long tydef) {
     result->pushOffset(result->unsafeLookupOffset(m.field, m.type), m.type);
   }
 
-  return reinterpret_cast<long>(result);
+  return reinterpret_cast<int64_t>(result);
 }
 
 // infer the type of a file by actually inspecting it
@@ -716,15 +716,15 @@ struct openFileF : public op {
   using InternTypes = std::unordered_map<std::string, MonoTypePtr>;
   InternTypes internTypes;
 
-  long encodeTypePtr(const Record* rty) {
+  int64_t encodeTypePtr(const Record* rty) {
     std::string rts = show(rty);
     auto it = this->internTypes.find(rts);
     if (it != this->internTypes.end()) {
-      return reinterpret_cast<long>(it->second.get());
+      return reinterpret_cast<int64_t>(it->second.get());
     } else {
       MonoTypePtr r(clone(rty));
       this->internTypes[rts] = r;
-      return reinterpret_cast<long>(r.get());
+      return reinterpret_cast<int64_t>(r.get());
     }
   }
 
@@ -1063,9 +1063,9 @@ public:
 
   struct insertLoadedFileF : public switchExprTyFn {
     const ConstraintPtr& constraint;
-    long f;
+    int64_t f;
 
-    insertLoadedFileF(const ConstraintPtr& constraint, long f) : constraint(constraint), f(f) {
+    insertLoadedFileF(const ConstraintPtr& constraint, int64_t f) : constraint(constraint), f(f) {
     }
 
     QualTypePtr withTy(const QualTypePtr& qt) const override {
@@ -1083,7 +1083,7 @@ public:
   };
 
   ExprPtr unqualify(const TEnvPtr&, const ConstraintPtr& cst, const ExprPtr& e, Definitions*) const override {
-    return switchOf(e, insertLoadedFileF(cst, reinterpret_cast<long>(loadedFile(cst).file)));
+    return switchOf(e, insertLoadedFileF(cst, reinterpret_cast<int64_t>(loadedFile(cst).file)));
   }
 
   PolyTypePtr lookup(const std::string& vn) const override {

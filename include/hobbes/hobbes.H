@@ -33,7 +33,7 @@ datetimeT now();
 datetimeT truncDate(datetimeT);
 timeT truncTime(datetimeT);
 datetimeT datetimeAt(datetimeT, timeT);
-timespanT gmtoffset(datetimeT);
+// timespanT gmtoffset(datetimeT);
 
 // allocate some memory in the calling thread's memory pool
 char *memalloc(size_t, size_t);
@@ -62,16 +62,16 @@ template <typename T> array<T> *defInitArray(array<T> *xs) {
 
 template <typename T> array<T> *makeArray(region &m, long n) {
   array<T> *r = reinterpret_cast<array<T> *>(
-      m.malloc(sizeof(long) + (sizeof(T) * n),
-               std::max<size_t>(sizeof(long), alignof(T))));
+      m.malloc(sizeof(int64_t) + (sizeof(T) * n),
+               std::max<size_t>(sizeof(int64_t), alignof(T))));
   r->size = n;
   return defInitArray<T>(r);
 }
 
 template <typename T> array<T> *makeArray(long n) {
   array<T> *r = reinterpret_cast<array<T> *>(
-      memalloc(sizeof(long) + (sizeof(T) * n),
-               std::max<size_t>(sizeof(long), alignof(T))));
+      memalloc(sizeof(int64_t) + (sizeof(T) * n),
+               std::max<size_t>(sizeof(int64_t), alignof(T))));
   r->size = n;
   return defInitArray<T>(r);
 }

@@ -718,7 +718,7 @@ void FixedArray::show(std::ostream& out) const { out << "[:"; this->ty->show(out
 const MonoTypePtr& FixedArray::type() const { return this->ty; }
 const MonoTypePtr& FixedArray::length() const { return this->len; }
 
-long FixedArray::requireLength() const {
+int64_t FixedArray::requireLength() const {
   if (const TLong* sz = is<TLong>(this->len)) {
     return sz->value();
   } else {
@@ -1471,15 +1471,15 @@ TString::TString(const std::string& val) : val(val) {
 void TString::show(std::ostream& out) const { out << "'" << this->val << "'"; }
 const std::string& TString::value() const { return this->val; }
 
-MonoTypePtr TLong::make(long x) {
+MonoTypePtr TLong::make(int64_t x) {
   return makeType<TLongMem, TLong>(x);
 }
 
-TLong::TLong(long x) : x(x) {
+TLong::TLong(int64_t x) : x(x) {
 }
 
 void TLong::show(std::ostream& out) const { out << this->x << "L"; }
-long TLong::value() const { return this->x; }
+int64_t TLong::value() const { return this->x; }
 
 // type-level expressions (which should soon consume the type-level 'long' and 'string' constructions above
 MonoTypePtr TExpr::make(const ExprPtr& e) {
@@ -2155,19 +2155,19 @@ public:
       } else if (f->name() == "list") {
         return sizeof(void*);
       } else if (f->name() == "fseq") {
-        return sizeof(long);
+        return sizeof(int64_t);
       } else if (f->name() == "lseq") {
         return sizeof(void*);
       } else if (f->name() == "file") {
-        return sizeof(long);
+        return sizeof(int64_t);
       } else if (f->name() == "process") {
-        return sizeof(long);
+        return sizeof(int64_t);
       } else if (f->name() == "connection") {
         return 0;
       } else if (f->name() == "quote") {
         return 0;
       } else if (f->name() == "promise") {
-        return sizeof(long);
+        return sizeof(int64_t);
       } else if (const TAbs* tf = is<TAbs>(f->representation())) {
         return r(substitute(substitution(tf->args(), v->args()), tf->body()));
       }
@@ -2194,7 +2194,7 @@ private:
     } else if (pn == "int") {
       return sizeof(int);
     } else if (pn == "long") {
-      return sizeof(long);
+      return sizeof(int64_t);
     } else if (pn == "int128") {
       return sizeof(int128_t);
     } else if (pn == "float") {
@@ -2339,7 +2339,7 @@ void write(bool b,               bytes* out) { out->push_back(b ? 0x01 : 0x00); 
 void write(char c,               bytes* out) { out->push_back(c); }
 void write(unsigned char c,      bytes* out) { out->push_back(c); }
 void write(int x,                bytes* out) { out->insert(out->end(), reinterpret_cast<unsigned char*>(&x), reinterpret_cast<unsigned char*>(&x) + sizeof(x)); }
-void write(long x,               bytes* out) { out->insert(out->end(), reinterpret_cast<unsigned char*>(&x), reinterpret_cast<unsigned char*>(&x) + sizeof(x)); }
+void write(int64_t x,            bytes* out) { out->insert(out->end(), reinterpret_cast<unsigned char*>(&x), reinterpret_cast<unsigned char*>(&x) + sizeof(x)); }
 void write(size_t x,             bytes* out) { out->insert(out->end(), reinterpret_cast<unsigned char*>(&x), reinterpret_cast<unsigned char*>(&x) + sizeof(x)); }
 void write(unsigned int x,       bytes* out) { out->insert(out->end(), reinterpret_cast<unsigned char*>(&x), reinterpret_cast<unsigned char*>(&x) + sizeof(x)); }
 void write(const std::string& s, bytes* out) { write(s.size(), out); out->insert(out->end(), s.begin(), s.end()); }

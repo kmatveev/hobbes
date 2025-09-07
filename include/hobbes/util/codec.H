@@ -21,7 +21,7 @@ PRIM_CODEC(unsigned char);
 PRIM_CODEC(char);
 PRIM_CODEC(short);
 PRIM_CODEC(int);
-PRIM_CODEC(long);
+PRIM_CODEC(int64_t);
 PRIM_CODEC(int128_t);
 PRIM_CODEC(size_t);
 PRIM_CODEC(float);

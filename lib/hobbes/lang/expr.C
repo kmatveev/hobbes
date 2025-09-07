@@ -102,9 +102,9 @@ bool Int::equiv(const Int& rhs)            const { return this->x == rhs.x; }
 bool Int::lt(const Int& rhs)               const { return this->x < rhs.x; }
 MonoTypePtr Int::primType() const { return MonoTypePtr(Prim::make("int")); }
 
-Long::Long(long x, const LexicalAnnotation& la) : Base(la), x(x) { }
-long Long::value() const { return this->x; }
-void Long::value(long nx) { this->x = nx; }
+Long::Long(int64_t x, const LexicalAnnotation& la) : Base(la), x(x) { }
+int64_t Long::value() const { return this->x; }
+void Long::value(int64_t nx) { this->x = nx; }
 Expr* Long::clone() const { return new Long(this->x,la()); }
 void Long::show(std::ostream& out)          const { out << this->x << "L"; }
 void Long::showAnnotated(std::ostream& out) const { show(out); showTy(out, type()); }
@@ -1712,7 +1712,7 @@ void decode(ExprPtr* out, std::istream& in) {
     break;
   }
   case Long::type_case_id: {
-    long x = 0;
+    int64_t x = 0;
     decode(&x, in);
     result = ExprPtr(new Long(x, LexicalAnnotation::null()));
     break;

@@ -8,3 +8,11 @@ CMakeFiles/
 /doc/building.txt
 .vscode/
 .gitmessage
+.ninja_deps
+.ninja_log
+.gitignore
+CTestTestfile.cmake
+cmake_install.cmake
+build.ninja
+hi.exe
+libhobbes.a

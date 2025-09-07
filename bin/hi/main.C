@@ -21,6 +21,10 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 
+#if defined(BUILD_MINGW)
+#include <windows.h>
+#endif
+
 namespace str = hobbes::str;
 
 namespace hi {
@@ -235,6 +239,22 @@ char** completions(const char* pfx, int start, int) {
 
 // allow expression evaluation to be interrupted
 static bool terminating = false;
+#if defined(BUILD_MINGW)
+static jmp_buf continueInterrupt;
+[[noreturn]] void interruptEval(int) {
+  longjmp(continueInterrupt, 42);
+}
+class interruption_error : public std::exception { };
+void installInterruptHandler() {
+  if (setjmp(continueInterrupt) == 0) {
+    signal(SIGINT, &interruptEval);
+  } else if (!terminating) {
+    throw interruption_error();
+  } else {
+    exit(-1);
+  }
+}
+#else
 static sigjmp_buf continueInterrupt;
 [[noreturn]] void interruptEval(int) {
   siglongjmp(continueInterrupt, 42);
@@ -249,10 +269,12 @@ void installInterruptHandler() {
     exit(-1);
   }
 }
+#endif
 
 // run a read-eval-print loop
 void evalLine(char*);
 
+#if defined(BUILD_LINUX) || defined(BUILD_OSX)
 void repl(evaluator*) {
   signal(SIGWINCH, SIG_IGN);
 
@@ -287,6 +309,24 @@ void repl(evaluator*) {
   // poll for events and dispatch them
   hobbes::runEventLoop();
 }
+#elif defined(BUILD_MINGW)
+void repl(evaluator*) {
+
+  std::ostringstream prompt;
+  prompt << resetfmt() << setbold() << setfgc(colors.promptfg) << "> " << setfgc(colors.stdtextfg) << std::flush;
+  const char* pr = prompt.str().c_str();
+
+  // set up readline autocompletion
+  rl_attempted_completion_function = completions;
+
+  while(true) {
+    char* line = readline(pr);
+    evalLine(line);
+  }
+
+} 
+#endif
+
 
 void evalLine(char* x) {
   // preprocess this line from readline
@@ -554,6 +594,8 @@ std::string saveData(void* d, size_t sz) {
 }
 
 void runProcess(const std::string& cmd, std::ostream& out) {
+#if defined(BUILD_MINGW)
+#else
   int ostdo = dup(STDOUT_FILENO);
   int pio[2]; // 0 = read, 1 = write
 
@@ -576,6 +618,7 @@ void runProcess(const std::string& cmd, std::ostream& out) {
     out.write(buf, n);
   }
   close(pio[0]);
+#endif  
 }
 
 }

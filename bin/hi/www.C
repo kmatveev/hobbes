@@ -3,10 +3,14 @@
 #include "www.H"
 #include <fstream>
 
+#if defined(BUILD_MINGW)
+#include <windows.h>
+#else
+#endif
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/resource.h>
+// #include <sys/resource.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 
 #ifdef BUILD_LINUX
@@ -36,6 +40,9 @@ bool fileExists(const std::string& x) {
 
 // find the target of a symlink
 std::string readLink(const std::string& path) {
+#if defined(BUILD_MINGW)  
+  return "";
+#else
   char buf[PATH_MAX];
   ssize_t len = -1;
 
@@ -44,12 +51,19 @@ std::string readLink(const std::string& path) {
   } else {
     return "";
   }
+#endif  
 }
 
 // get the path to the directory where this executable is running
 std::string exeDir() {
+#if defined(BUILD_MINGW)
+  char buf[PATH_MAX];
+  int len = GetModuleFileNameA(NULL, buf, sizeof(buf) - 1);
+  return std::string(buf, len);
+#else  
   using namespace hobbes;
   return str::rsplit(readLink("/proc/self/exe"), "/").first;
+#endif  
 }
 
 // find a www file by category
@@ -454,7 +468,12 @@ void WWWServer::eval(const hobbes::HTTPRequest& req, int fd) {
 
 void WWWServer::evalHTTPRequest(const hobbes::HTTPRequest& req, int fd, void* ud) {
   // go back to blocking mode for this socket .. we have nothing left to incrementally read
+#if defined(__MINGW64__)
+  u_long mode = 0;
+  ioctlsocket(fd, FIONBIO, &mode);
+#else
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+#endif        
 
   // evaluate it
   reinterpret_cast<WWWServer*>(ud)->eval(req, fd);

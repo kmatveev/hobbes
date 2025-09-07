@@ -8,12 +8,17 @@
 
 #include <cstring>
 #include <fcntl.h>
+#if defined(__MINGW64__)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 namespace hobbes {
 
@@ -160,7 +165,12 @@ int installHTTPD(int port, HTTPRequestHandler f, void* ud) {
       int c = accept(s, nullptr, nullptr);
       if (c != -1) {
         auto* rcb = reinterpret_cast<ReqCB*>(d);
+#if defined(__MINGW64__)
+        u_long mode = 1;
+        ioctlsocket(c, FIONBIO, &mode);
+#else
         fcntl(c, F_SETFL, fcntl(c, F_GETFL) | O_NONBLOCK);
+#endif        
         registerEventHandler(c, &evaluatePartialHTTPRequest, reinterpret_cast<void*>(new PartialHTTPRequestState(c, rcb->first, rcb->second)));
       }
     },
@@ -172,3 +182,15 @@ int installHTTPD(int port, HTTPRequestHandler f, void* ud) {
 
 }
 
+#if defined(__MINGW64__)
+inline void setBlockingBit(int socket, bool block) {
+  u_long mode =  block ? 0 : 1;
+  int result = ioctlsocket(socket, FIONBIO, &mode);
+}
+#else
+inline void setBlockingBit(int socket, bool block) {
+  int f = fcntl(socket, F_GETFL, 0);
+  if (f == -1) f = 0;
+  fcntl(socket, F_SETFL, block ? (f & (~O_NONBLOCK)) : (f | O_NONBLOCK));
+}
+#endif

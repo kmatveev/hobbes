@@ -1,6 +1,7 @@
 
 #include <hobbes/hobbes.H>
 #include <hobbes/ipc/nbindings.H>
+#include <hobbes/lang/type.H>
 #include <hobbes/ipc/net.H>
 #include <hobbes/lang/preds/class.H>
 #include <hobbes/lang/tyunqualify.H>
@@ -58,7 +59,7 @@ bool isPartialConnection(const MonoTypePtr& t) {
 }
 
 MonoTypePtr makeConnType(Client* c) {
-  return tapp(primty("connection"), list(tlong(reinterpret_cast<long>(c))));
+  return tapp(primty("connection"), list(tlong(reinterpret_cast<long long>(c))));
 }
 
 // connect to a remote process at compile-time
@@ -325,7 +326,7 @@ private:
 
                   // enqueue the read function for this expected result
                   let("r", fncall(var("unsafeAppendClientReadFn", functy(list(longt, urfnty), longt), la), list(
-                              constant(static_cast<long>(chv->value()), la),
+                              constant(static_cast<long long>(chv->value()), la),
                               fncall(var("unsafeCast", functy(list(rfnty), urfnty), la), list(var("readFrom", qualtype(list(outcst), rfnty), la)), la)
                            ), la),
 
@@ -460,7 +461,7 @@ private:
         if (auto* c = reinterpret_cast<Client*>(chv->value())) {
           if (isAllocatedConnection(c) && !hasFreeVariables(ty)) {
             // our receive function is uniquely determined by its connection and result type
-            std::string recvFnName = ".cxn.recvFn." + str::from(chv->value()) + "." + str::from(reinterpret_cast<long>(ty.get()));
+            std::string recvFnName = ".cxn.recvFn." + str::from(chv->value()) + "." + str::from(reinterpret_cast<long long>(ty.get()));
 
             // we only need to generate this function if we've never seen this return type before
             try {
@@ -480,7 +481,7 @@ private:
                         fncall(
                           var("unsafeClientRead", functy(list(primty("long"), primty("long")), opaqueptr<char>(false)), la),
                           list(
-                            constant(static_cast<long>(chv->value()), la),
+                            constant(static_cast<long long>(chv->value()), la),
                             var("x", primty("long"), la)
                           ),
                           la
@@ -522,7 +523,7 @@ struct printConnectionF : public op {
   llvm::Value* apply(jitcc* c, const MonoTypes& tys, const MonoTypePtr&, const Exprs& es) override {
     if (Client* conn = decodeConnType(tys[0])) {
       ExprPtr wfrtfn = var(this->showf, functy(list(primty("long")), primty("unit")), es[0]->la());
-      return c->compile(fncall(wfrtfn, list(constant(reinterpret_cast<long>(conn), es[0]->la())), es[0]->la()));
+      return c->compile(fncall(wfrtfn, list(constant(reinterpret_cast<long long>(conn), es[0]->la())), es[0]->la()));
     } else {
       throw std::runtime_error("Internal error, invalid connection type: " + show(tys[0]));
     }

@@ -14,6 +14,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <cstdint>
 #include <cxxabi.h>
 #include <iostream>
 #include <map>

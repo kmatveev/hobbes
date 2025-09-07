@@ -23,6 +23,10 @@
 
 #include <cstring>
 #include <fcntl.h>
+#if defined(__MINGW64__)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -30,6 +34,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#endif
 
 // types with static reflection info (for reflective structs, variants, etc)
 #include "reflect.H"
@@ -47,7 +52,8 @@ using bytes = std::vector<uint8_t>;
 inline void sendData(int socket, const uint8_t* d, size_t sz) {
   size_t i = 0;
   while (i < sz) {
-    ssize_t c = ::send(socket, d + i, sz - i, 0);
+    char* dp = (char*)(d + i);
+    ssize_t c = ::send(socket, dp, sz - i, 0);
     if (c < 0) {
       throw std::runtime_error("Couldn't write to socket: " + std::string(strerror(errno)));
     }
@@ -72,7 +78,8 @@ inline void sendBytes(int socket, const bytes& x) {
 inline void recvData(int socket, uint8_t* d, size_t sz) {
   size_t i = 0;
   while (i < sz) {
-    ssize_t di = recv(socket, d + i, sz - i, 0);
+    char* dp = (char*)(d + i);
+    ssize_t di = recv(socket, dp, sz - i, 0);
 
     if (di < 0) {
       if (errno != EINTR) {
@@ -94,14 +101,22 @@ inline void recvString(int socket, std::string* x) {
   recvData(socket, reinterpret_cast<uint8_t*>(&(*x)[0]), n);
 }
 
+#if defined(__MINGW64__)
+inline void setBlockingBit(int socket, bool block) {
+  u_long mode =  block ? 0 : 1;
+  int result = ioctlsocket(socket, FIONBIO, &mode);
+}
+#else
 inline void setBlockingBit(int socket, bool block) {
   int f = fcntl(socket, F_GETFL, 0);
   if (f == -1) f = 0;
   fcntl(socket, F_SETFL, block ? (f & (~O_NONBLOCK)) : (f | O_NONBLOCK));
 }
+#endif
 
 inline size_t recvDataPartial(int socket, uint8_t* d, size_t sz) {
-  ssize_t di = recv(socket, d, sz, 0);
+  char* dp = (char*)d;
+  ssize_t di = recv(socket, dp, sz, 0);
 
   if (di == 0) {
     throw std::runtime_error("Remote process closed session prematurely");
@@ -171,10 +186,12 @@ inline addrinfo* lookupAddrInfo(const std::string& host, const std::string& port
   struct addrinfo* addrs = nullptr;
   switch (getaddrinfo(hostname, service, &h, &addrs)) {
   case 0:              return addrs;
+#if !defined(__MINGW64__)  
   case EAI_ADDRFAMILY: throw std::runtime_error("Cannot make socket connection to " + host + ":" + port);
+  case EAI_SYSTEM:     throw std::runtime_error("Error while trying to resolve " + host + ":" + port + " (" + std::string(strerror(errno)) + ")");
+#endif  
   case EAI_AGAIN:      throw std::runtime_error(host + ":" + port + " is temporarily unavailable");
   case EAI_FAIL:       throw std::runtime_error("Failed to resolve hostname: " + host);
-  case EAI_SYSTEM:     throw std::runtime_error("Error while trying to resolve " + host + ":" + port + " (" + std::string(strerror(errno)) + ")");
   case EAI_NONAME:     throw std::runtime_error("Failed to resolve " + host + ":" + port);
   case EAI_SERVICE:    throw std::runtime_error("Failed to resolve service: " + port);
   default:             throw std::runtime_error("Unknown error while trying to resolve " + host + ":" + port);

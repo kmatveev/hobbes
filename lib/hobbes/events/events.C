@@ -10,6 +10,8 @@
 
 #ifdef BUILD_LINUX
 #include <sys/epoll.h>
+#elif defined(BUILD_MINGW)
+#include <windows.h>
 #elif defined(BUILD_OSX)
 #include <sys/event.h>
 #endif
@@ -183,6 +185,105 @@ void runEventLoop(int microsecondDuration, const std::function<bool()>& stopFn) 
     t = hobbes::time();
   } while (t < tf && !stopFn());
 }
+
+#elif defined(BUILD_MINGW)
+
+thread_local bool           cpInitialized = false;
+thread_local HANDLE         cpFD          = 0;
+thread_local EventClosures* cpClosures    = nullptr;
+
+HANDLE threadCPFD() {
+  if (!cpInitialized) {
+    cpFD       = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+    cpClosures = new EventClosures();
+
+    if (cpFD == NULL) {
+      throw std::runtime_error("Failed to create compretion port: " + std::string(strerror(errno)));
+    }
+    cpInitialized = true;
+  }
+  return cpFD;
+}
+
+void unregisterEventHandler(int fd) {
+  auto ec = cpClosures->find(fd);
+  if (ec != cpClosures->end()) {
+    // TODO see https://stackoverflow.com/questions/6573218/removing-a-handle-from-a-i-o-completion-port-and-other-questions-about-iocp
+    delete ec->second;
+  }
+}
+
+void registerEventHandler(int fd, const std::function<void(int)>& fn, bool) {
+  HANDLE cpfd = threadCPFD();
+
+  auto* c = new eventcbclosure(fd, fn);
+  (*cpClosures)[fd] = c;
+
+  if (CreateIoCompletionPort((HANDLE)_get_osfhandle(fd), cpfd, (ULONG_PTR)(reinterpret_cast<void*>(c)), 0) == NULL) {
+    delete c;
+    throw std::runtime_error("Failed to add FD to completion port: " + std::string(strerror(errno)));
+  }
+}
+
+void registerInterruptHandler(const std::function<void()>& fn) {
+  threadCPFD();
+  auto* c = new eventcbclosure(-1, [fn](int){fn();});
+  (*cpClosures)[-1] = c;
+}
+
+bool stepEventLoop(int timeoutMS, const std::function<bool()>& stopFn) {
+  HANDLE cpfd = threadCPFD();
+  while (!stopFn()) {
+
+    OVERLAPPED_ENTRY evts[64];
+    ULONG fds = 0;
+		BOOL ok = GetQueuedCompletionStatusEx(cpfd, evts, sizeof(evts)/sizeof(evts[0]), &fds, timeoutMS, 0);    // !!! timeout MUST be in ms, not nanos
+    bool status = true;
+    if (fds > 0) {
+      for (int fd = 0; fd < fds; ++fd) {
+        auto* c = reinterpret_cast<eventcbclosure*>(evts[fd].lpCompletionKey);
+        (c->fn)(c->fd);
+        resetMemoryPool();
+      }
+    }
+    return status;
+  }
+  return false;
+}
+
+void runEventLoop(const std::function<bool()>& stopFn) {
+  while (stepEventLoop(-1, stopFn));
+}
+
+void addTimer(timerfunc f, int millisecInterval) {
+  throw std::runtime_error("addTimer nyi for MINGW");
+}
+
+void runEventLoop(int microsecondDuration, const std::function<bool()>& stopFn) {
+  long t  = hobbes::time() / 10000000L;
+  long dt = static_cast<long>(microsecondDuration) / 1000L;
+  long tf = t + dt;
+
+  HANDLE cpfd = threadCPFD();
+  do {
+    double nsleft = tf-t;
+    int timeout = (ceil(nsleft / 1000000.0));
+    if (timeout < 0) timeout = 0;
+
+    OVERLAPPED_ENTRY evts[64];
+    ULONG fds = 0;
+		BOOL ok = GetQueuedCompletionStatusEx(cpfd, evts, sizeof(evts)/sizeof(evts[0]), &fds, timeout, 0);    // !!! timeout MUST be in ms, not nanos
+    if (fds > 0) {
+      for (int fd = 0; fd < fds; ++fd) {
+        auto* c = reinterpret_cast<eventcbclosure*>(evts[fd].lpCompletionKey);
+        (c->fn)(c->fd);
+        resetMemoryPool();
+      }
+    }
+    t = hobbes::time() / 10000000L;
+  } while (t < tf && !stopFn());
+}
+
 
 #elif defined(BUILD_OSX)
 

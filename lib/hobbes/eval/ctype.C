@@ -11,7 +11,7 @@ llvm::Type* llvmPrim(const std::string& name) {
     return voidType();
   } else if (name == "void") {
     // this type is impossible to construct, so we might as well say it's anything
-    return ptrType(byteType());
+    return ptrType();
   } else if (name == "bool") {
     return boolType();
   } else if (name == "char") {
@@ -35,11 +35,6 @@ llvm::Type* llvmPrim(const std::string& name) {
   }
 }
 
-// an array with unknown length is stored as a record holding the length plus the array contents
-llvm::Type* llvmVarArrType(llvm::Type* elemty, int size) {
-  return recordType(longType(), arrayType(elemty, size));
-}
-
 class translateTypeF : public switchType<llvm::Type*> {
 public:
   translateTypeF(bool asArg) : asArg(asArg) { }
@@ -56,7 +51,7 @@ public:
     if (!asArg && v->storedContiguously()) {
       return arrayType(byteType(), v->size());
     } else {
-      return ptrType(byteType());
+      return ptrType();
     }
   }
 
@@ -106,8 +101,7 @@ public:
   }
 
   llvm::Type* with(const Array* v) const override {
-    bool innerPtrs = (is<OpaquePtr>(v->type()) != nullptr) || (is<Func>(v->type()) != nullptr);
-    return asPtrIf(llvmVarArrType(switchOf(v->type(), translateTypeF(innerPtrs))), true);
+    return ptrType();
   }
 
   llvm::Type* with(const Variant* v) const override {
@@ -141,7 +135,7 @@ public:
   }
 
   llvm::Type* with(const Recursive*) const override {
-    return ptrType(byteType());
+    return ptrType();
   }
 
   llvm::Type* with(const TString* v) const override {
@@ -159,7 +153,7 @@ private:
   bool asArg;
 
   static llvm::Type* asPtrIf(llvm::Type* ty, bool asptr) {
-    return asptr ? ptrType(ty) : ty;
+    return asptr ? ptrType() : ty;
   }
 };
 

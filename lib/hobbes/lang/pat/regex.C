@@ -1032,7 +1032,7 @@ void makeExprDFAFunc(cc* c, const std::string& fname, const MonoTypePtr& capture
 
   ExprPtr fndef =
     fn(str::strings("cap", "cs", "i", "e", "s"),
-      let("n", fncall(var("ladd", rootLA), list(var("i", rootLA), constant(static_cast<long>(1), rootLA)), rootLA),
+      let("n", fncall(var("ladd", rootLA), list(var("i", rootLA), constant(static_cast<int64_t>(1), rootLA)), rootLA),
       let("elem", assume(var("element", rootLA), qarrElemTy, rootLA),
         switchE(
           var("s", rootLA),

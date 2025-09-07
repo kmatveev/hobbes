@@ -8,8 +8,6 @@
 
 namespace hobbes {
 
-llvm::Type* llvmVarArrType(llvm::Type* elemty, int size = 1); // 'size' is a hint for array size but not necessarily meaningful
-
 llvm::Type* toLLVM(const MonoTypePtr&, bool asArg = false);
 Types toLLVM(const MonoTypes&, bool asArg = false);
 

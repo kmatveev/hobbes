@@ -2,7 +2,6 @@
 
 #include <llvm/Config/llvm-config.h>
 
-#if LLVM_VERSION_MAJOR >= 11
 #include <hobbes/hobbes.H>
 #include <hobbes/util/llvm.H>
 
@@ -10,10 +9,10 @@
 #include <llvm/ExecutionEngine/Orc/CompileUtils.h>
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/Support/AllocatorBase.h>
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/Error.h>
-#include <llvm/Support/Host.h>
 #include <llvm/Support/Process.h>
 
 namespace {
@@ -23,7 +22,7 @@ optimizeModule(llvm::orc::ThreadSafeModule tsm,
   tsm.withModuleDo([](llvm::Module &m) {
     auto fpm = llvm::legacy::FunctionPassManager(&m);
     fpm.add(llvm::createReassociatePass());
-    fpm.add(llvm::createNewGVNPass());
+    // fpm.add(llvm::createNewGVNPass());
     fpm.add(llvm::createCFGSimplificationPass());
     fpm.add(llvm::createTailCallEliminationPass());
     fpm.doInitialization();
@@ -62,9 +61,9 @@ ORCJIT::ORCJIT() {
           .setJITTargetMachineBuilder(
               llvm::cantFail(llvm::orc::JITTargetMachineBuilder::detectHost()))
           .setNumCompileThreads(tn)
-          .setLazyCompileFailureAddr(llvm::pointerToJITTargetAddress(+[] {
+          .setLazyCompileFailureAddr(llvm::orc::ExecutorAddr(llvm::pointerToJITTargetAddress(+[] {
             throw std::runtime_error("exiting on lazy call through failure");
-          }))
+          })))
           .create());
   jit->getIRTransformLayer().setTransform(optimizeModule);
   jit->getMainJITDylib().addGenerator(
@@ -84,13 +83,13 @@ llvm::Error ORCJIT::addModule(std::unique_ptr<llvm::Module> m) {
   });
 }
 
-llvm::Expected<llvm::JITEvaluatedSymbol> ORCJIT::lookup(llvm::StringRef name) {
+llvm::Expected<llvm::orc::ExecutorAddr> ORCJIT::lookup(llvm::StringRef name) {
   return jit->lookup(name);
 }
 
 llvm::Error ORCJIT::addExternalCallableSymbol(llvm::StringRef name, void *ptr) {
   return jit->getMainJITDylib().define(llvm::orc::absoluteSymbols(
-      {{(*mangle)(name), llvm::JITEvaluatedSymbol::fromPointer(
+      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef::fromPtr(
                              ptr, llvm::JITSymbolFlags::Exported |
                                       llvm::JITSymbolFlags::Callable)}}));
 }
@@ -98,7 +97,7 @@ llvm::Error ORCJIT::addExternalCallableSymbol(llvm::StringRef name, void *ptr) {
 llvm::Error ORCJIT::addExternalNonCallableSymbol(llvm::StringRef name,
                                                  void *ptr) {
   return jit->getMainJITDylib().define(llvm::orc::absoluteSymbols(
-      {{(*mangle)(name), llvm::JITEvaluatedSymbol::fromPointer(ptr)}}));
+      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef::fromPtr(ptr)}}));
 }
 } // namespace hobbes
-#endif
+

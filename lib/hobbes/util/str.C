@@ -1,8 +1,12 @@
-
+#include <hobbes/util/os.H>
 #include <hobbes/util/str.H>
 #include <memory>
+#if defined(BUILD_MINGW)
+#include <cstdlib>
+#else
 #include <wordexp.h>
 #include <glob.h>
+#endif
 
 namespace hobbes { namespace str {
 
@@ -12,7 +16,11 @@ std::string env(const std::string& varname) {
 }
 
 void env(const std::string& varname, const std::string& value) {
+#if defined(BUILD_MINGW)
+  _putenv_s(varname.c_str(), value.c_str());
+#else  
   setenv(varname.c_str(), value.c_str(), 1);
+#endif
 }
 
 void repeat(unsigned int n, const std::string& s, seq* out) {
@@ -510,6 +518,11 @@ std::string expandVars(const std::string& x) {
     );
 }
 
+#if defined(BUILD_MINGW)
+std::string expandPath(const std::string& x) {
+  return x;
+}
+#else
 std::string expandPath(const std::string& x) {
   wordexp_t we;
   if (wordexp(x.c_str(), &we, 0) == 0) {
@@ -520,6 +533,7 @@ std::string expandPath(const std::string& x) {
     return x;
   }
 }
+#endif
 
 // display a byte count in typical units
 std::string showDataSize(size_t bytes) {
@@ -705,6 +719,11 @@ std::string mustEndWith(const std::string& x, const std::string& sfx) {
 }
 
 // get a set of filesystem objects matching a pattern
+#if defined(BUILD_MINGW)
+str::seq paths(const std::string& p) {
+  return str::seq();
+}
+#else
 str::seq paths(const std::string& p) {
   glob_t g;
   if (glob(p.c_str(), 0, nullptr, &g) != 0) {
@@ -721,6 +740,7 @@ str::seq paths(const std::string& p) {
     return r;
   }
 }
+#endif
 
 }}
 

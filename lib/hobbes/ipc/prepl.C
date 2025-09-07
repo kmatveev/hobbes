@@ -7,11 +7,15 @@
 #include <hobbes/util/os.H>
 #include <sstream>
 #include <string>
+#if defined(BUILD_MINGW)
+#include <sys/stat.h>
+#else
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 namespace {
 bool doesDirExist(const std::string &name) {
@@ -45,6 +49,8 @@ struct TermResult {
 
 const TermResult TermResult::OK = {.ok = true};
 
+#if defined(BUILD_MINGW)
+#else
 TermResult killAndWait(pid_t cpid) {
   const auto killFn = [cpid]() -> TermResult {
     if (kill(cpid, SIGTERM) != 0) {
@@ -82,6 +88,7 @@ TermResult killAndWait(pid_t cpid) {
   }
   return {.reason = "process " + std::to_string(cpid) + " is still alive"};
 }
+#endif
 } // namespace
 
 namespace hobbes {
@@ -100,6 +107,11 @@ void execProcess(const std::string& cmd) {
   execv(args[0].c_str(), const_cast<char* const*>(&argv[0]));
 }
 
+#if defined(BUILD_MINGW)
+void spawn(const std::string& cmd, proc* p, const FailToKillCallback& fn) {
+  return;
+}
+#else
 void spawn(const std::string& cmd, proc* p, const FailToKillCallback& fn) {
   // launch the process -- set up pipes for communication
   int p2c[2] = {0, 0};
@@ -191,6 +203,7 @@ void spawn(const std::string& cmd, proc* p, const FailToKillCallback& fn) {
     throw;
   }
 }
+#endif
 
 long ProcManager::spawnedPid(const std::string& cmd) {
   auto ce = this->procs.find(cmd);
@@ -515,6 +528,8 @@ void runMachineREPLStep(cc* c) {
   }
 }
 
+#if defined(BUILD_MINGW)
+#else
 using Signames = std::map<int, const char *>;
 static Signames rsignames;
 static void deadlySignal [[noreturn]] (int sig, siginfo_t*, void*) {
@@ -536,6 +551,7 @@ static void deadlySignal [[noreturn]] (int sig, siginfo_t*, void*) {
   }
   exit(-1);
 }
+#endif
 
 void runMachineREPL(cc* c) {
   // send the startup message
@@ -600,6 +616,10 @@ void procTypeEnv(proc* p) {
   fdwrite(p->write_fd, CMD_REPL_TENV);
 }
 
+#if defined(BUILD_MINGW)
+void procRead(proc* p, std::ostream* o, uint64_t waitUS) {
+}
+#else
 void procRead(proc* p, std::ostream* o, uint64_t waitUS) {
   int status = 0;
   if (waitpid(p->pid, &status, WNOHANG) == p->pid) {
@@ -645,6 +665,7 @@ void procRead(proc* p, std::ostream* o, uint64_t waitUS) {
     }
   }
 }
+#endif
 
 MonoTypePtr refinedType(const proc& p, const std::string& fname, const MonoTypePtr& hasty) {
   fdwrite(p.write_fd, static_cast<int>(0));

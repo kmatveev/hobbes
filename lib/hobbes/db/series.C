@@ -369,7 +369,7 @@ void RawStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         let("_", assume(var("x", nla), this->recordType, nla),
-          fncall(var("unsafeWriteUnitToSeries", nla), list(constant(reinterpret_cast<long>(this), nla)), nla),
+          fncall(var("unsafeWriteUnitToSeries", nla), list(constant(reinterpret_cast<uint64_t>(this), nla)), nla),
           nla
         ),
         nla
@@ -381,7 +381,7 @@ void RawStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         fncall(var("unsafeWriteToSeries", nla), list(
-          constant(reinterpret_cast<long>(this), nla),
+          constant(reinterpret_cast<uint64_t>(this), nla),
           fncall(var("unsafeCast", nla), list(
             assume(var("x", nla), this->recordType, nla)),
             nla
@@ -397,7 +397,7 @@ void RawStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         fncall(var("unsafeWriteToSeries", nla), list(
-          constant(reinterpret_cast<long>(this), nla),
+          constant(reinterpret_cast<uint64_t>(this), nla),
           fncall(var("unsafeCast", nla), list(
             mktuple(assume(var("x", nla), this->recordType, nla), nla)),
             nla
@@ -726,7 +726,7 @@ void CompressedStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         let("_", assume(var("x", nla), this->recordType, nla),
-          fncall(var("unsafeWriteUnitToCSeries", nla), list(constant(reinterpret_cast<long>(this), nla)), nla),
+          fncall(var("unsafeWriteUnitToCSeries", nla), list(constant(reinterpret_cast<uint64_t>(this), nla)), nla),
           nla
         ),
         nla
@@ -738,7 +738,7 @@ void CompressedStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         fncall(var("unsafeWriteToCSeries", nla), list(
-          constant(reinterpret_cast<long>(this), nla),
+          constant(reinterpret_cast<uint64_t>(this), nla),
           fncall(var("unsafeCast", nla), list(
             assume(var("x", nla), this->recordType, nla)),
             nla
@@ -754,7 +754,7 @@ void CompressedStoredSeries::bindAs(cc* c, const std::string& vname) {
       vname,
       fn("x",
         fncall(var("unsafeWriteToCSeries", nla), list(
-          constant(reinterpret_cast<long>(this), nla),
+          constant(reinterpret_cast<uint64_t>(this), nla),
           fncall(var("unsafeCast", nla), list(
             mktuple(assume(var("x", nla), this->recordType, nla), nla)),
             nla

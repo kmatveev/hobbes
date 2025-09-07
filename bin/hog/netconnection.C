@@ -2,7 +2,11 @@
 #include <hobbes/util/codec.H> // fdwrite
 #include <hobbes/util/os.H> // BUILD_LINUX, BUILD_OSX
 
+#if defined(BUILD_MINGW)
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <sys/stat.h>
 #include <stdexcept>
 #include <unistd.h>

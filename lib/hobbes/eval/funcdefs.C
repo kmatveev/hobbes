@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 3
+
 #include <hobbes/eval/funcdefs.H>
 #include <hobbes/util/region.H>
 #include <hobbes/hobbes.H>
@@ -9,6 +11,7 @@
 #include <hobbes/util/stream.H>
 
 #include <stack>
+#include <time.h>
 #include <iostream>
 #include <iomanip>
 #include <strings.h>
@@ -171,7 +174,7 @@ scoped_pool_reset::~scoped_pool_reset() {
 }
 
 const array<char>* makeString(region& m, const char* s, size_t len) {
-  auto* r = reinterpret_cast<array<char>*>(m.malloc(sizeof(long) + len));
+  auto* r = reinterpret_cast<array<char>*>(m.malloc(sizeof(int64_t) + len));
   r->size = len;
   memcpy(r->data, s, len);
   return r;
@@ -278,7 +281,7 @@ const maybe<int>::ty* readInt(const array<char>* x) {
   return readISV<int>(x);
 }
 
-const array<char>* showLong(long x) {
+const array<char>* showLong(int64_t x) {
   return makeString(str::from(x));
 }
 
@@ -292,8 +295,8 @@ const maybe<int128_t>::ty* readInt128(const array<char>* x) {
   return readISV<int128_t>(x);
 }
 
-const maybe<long>::ty* readLong(const array<char>* x) {
-  return readISV<long>(x);
+const maybe<int64_t>::ty* readLong(const array<char>* x) {
+  return readISV<int64_t>(x);
 }
 
 const array<char>* showFloat(float x, int p) {
@@ -425,12 +428,12 @@ const CTM* hgmtime(datetimeT x) {
   return mkCTM(x.value % USECS, xtm);
 }
 
-timespanT gmtoffset(datetimeT x) {
-  time_t xt = x.value / (1000*1000);
-  struct tm xtm;
-  localtime_r(&xt, &xtm);
-  return xtm.tm_gmtoff * (1000*1000);
-}
+//timespanT gmtoffset(datetimeT x) {
+//  time_t xt = x.value / (1000*1000);
+//  struct tm xtm;
+//  localtime_r(&xt, &xtm);
+//  return xtm.tm_gmtoff * (1000*1000);
+//}
 
 std::ostringstream& stdoutBuffer() {
   static std::ostringstream ss;
@@ -687,7 +690,7 @@ void initStdFuncDefs(cc& ctx) {
   ctx.bind("date",         &truncDate);
   ctx.bind("time",         &truncTime);
   ctx.bind("datetimeAt",   &datetimeAt);
-  ctx.bind("gmtoffset",    &gmtoffset);
+//  ctx.bind("gmtoffset",    &gmtoffset);
   ctx.bind("localtime",    &hlocaltime);
   ctx.bind("gmtime",       &hgmtime);
 
@@ -739,8 +742,8 @@ void initStdFuncDefs(cc& ctx) {
   ctx.bind("fdWriteShort",  &fdWrite<short>);
   ctx.bind("fdReadInt",     &fdRead<int>);
   ctx.bind("fdWriteInt",    &fdWrite<int>);
-  ctx.bind("fdReadLong",    &fdRead<long>);
-  ctx.bind("fdWriteLong",   &fdWrite<long>);
+  ctx.bind("fdReadLong",    &fdRead<int64_t>);
+  ctx.bind("fdWriteLong",   &fdWrite<int64_t>);
   ctx.bind("fdReadInt128",  &fdRead<int128_t>);
   ctx.bind("fdWriteInt128", &fdWrite<int128_t>);
   ctx.bind("fdReadFloat",   &fdRead<float>);

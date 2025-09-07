@@ -6,14 +6,20 @@
 #include <hobbes/util/perf.H>
 #include <hobbes/util/str.H>
 #include <hobbes/util/time.H>
+#include <hobbes/util/os.H>
 
 #include <cstdlib>
 #include <ctime>
 #include <fcntl.h>
 #include <fstream>
+#if defined(BUILD_MINGW)
+#include <windows.h>
+#include <sys/stat.h>
+#else
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 namespace hi {
 
@@ -50,6 +56,11 @@ void enableConsoleCmds(bool f);
 // spawn sub-processes and support basic I/O
 using PIO = std::pair<int, int>;
 
+#if defined(BUILD_MINGW)
+const PIO* pexec(const hobbes::array<char>* cmd) {
+  return NULL;
+}
+#else
 const PIO* pexec(const hobbes::array<char>* cmd) {
   PIO* p = hobbes::make<PIO>(0, 0);
 
@@ -94,6 +105,7 @@ const PIO* pexec(const hobbes::array<char>* cmd) {
   }
   return p;
 }
+#endif
 
 const hobbes::array<char>* fdReadLine(int fd) {
   std::ostringstream line;
@@ -118,11 +130,19 @@ const hobbes::array<char>* runPath() {
   char buf[PATH_MAX];
   ssize_t len = -1;
 
+#if defined(BUILD_MINGW)  
+  if ((len = GetModuleFileNameA(NULL, buf, sizeof(buf) - 1)) != -1) {
+    return hobbes::makeString(hobbes::str::rsplit(std::string(buf, len), "/").first);
+  } else {
+    return hobbes::makeString(std::string("./"));
+  }
+#else
   if ((len = readlink("/proc/self/exe", buf, sizeof(buf) - 1)) != -1) {
     return hobbes::makeString(hobbes::str::rsplit(std::string(buf, len), "/").first);
   } else {
     return hobbes::makeString(std::string("./"));
   }
+#endif  
 }
 
 // bind all of these functions into a compiler

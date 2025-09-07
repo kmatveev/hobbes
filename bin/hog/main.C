@@ -2,6 +2,7 @@
 #include <hobbes/util/str.H>
 #include <hobbes/util/codec.H>
 #include <hobbes/util/time.H>
+#include <hobbes/util/os.H>
 
 #include <atomic>
 #include <stdexcept>
@@ -148,7 +149,9 @@ static std::vector<std::string> argvToStrings(const char** ts, const int count) 
 }
 
 int main(int argc, const char** argv) {
+#if !defined(BUILD_MINGW)
   signal(SIGPIPE, SIG_IGN);
+#endif
   try {
     auto m = hog::config(argc, argv);
     // Presumably we don't want to automatically recover and perform batchsend

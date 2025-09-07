@@ -221,9 +221,9 @@ private:
 // 64-bit int
 class Long : public PrimitiveCase<Long> {
 public:
-  Long(long x, const LexicalAnnotation&);
-  long value() const;
-  void value(long);
+  Long(int64_t x, const LexicalAnnotation&);
+  int64_t value() const;
+  void value(int64_t);
   Expr* clone() const override;
   void show(std::ostream& out) const override;
   void showAnnotated(std::ostream& out) const override;
@@ -233,7 +233,7 @@ public:
 
   static const int type_case_id = 6;
 private:
-  long x;
+  int64_t x;
 };
 
 // 32-bit float
@@ -707,7 +707,7 @@ inline ExprPtr constant(int x, const LexicalAnnotation& la) {
   return r;
 }
 
-inline ExprPtr constant(long x, const LexicalAnnotation& la) {
+inline ExprPtr constant(int64_t x, const LexicalAnnotation& la) {
   ExprPtr r(new Long(x, la));
   r->type(qualtype(MonoTypePtr(Prim::make("long"))));
   return r;

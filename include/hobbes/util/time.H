@@ -16,14 +16,14 @@ namespace hobbes {
  *  e.g.: 5s, 20m, 4day2h3m30s200ms456us, ...
  *
  * *****/
-inline long readTimespan(std::string s) {
-  long r = 0;
+inline long long readTimespan(std::string s) {
+  long long r = 0;
 
   while (!s.empty()) {
     str::pair p = str::readWhile(&str::isDigit,    s);
     str::pair u = str::readWhile(&str::isNotDigit, p.second);
 
-    long m = 1;
+    long long m = 1;
     if (u.first == "us") {                            // microseconds
       m = 1;
     } else if (u.first == "ms") {                     // milliseconds
@@ -33,9 +33,9 @@ inline long readTimespan(std::string s) {
     } else if (u.first == "m" || u.first == "min") {  // minutes
       m = 1000000*60;
     } else if (u.first == "h" || u.first == "hour") { // hours
-      m = 1000000L*60*60;
+      m = 1000000LL*60*60;
     } else if (u.first == "d" || u.first == "day") {  // days
-      m = 1000000L*60*60*24;
+      m = 1000000LL*60*60*24;
     }
 
     r += str::to<uint64_t>(p.first) * m;
@@ -45,8 +45,8 @@ inline long readTimespan(std::string s) {
   return r;
 }
 
-inline long readTimespan(const str::seq& ss) {
-  long r = 0;
+inline int64_t readTimespan(const str::seq& ss) {
+  int64_t r = 0;
   for (const auto& s : ss) {
     r += readTimespan(s);
   }
@@ -57,8 +57,8 @@ inline std::string showTimespan(long ts) {
   static const long msus  = 1000;
   static const long sus   = msus * 1000;
   static const long mus   = sus * 60;
-  static const long hus   = mus * 60;
-  static const long dayus = hus * 24;
+  static const long long hus   = mus * 60LL;
+  static const long long dayus = hus * 24;
 
   uint64_t x  = labs(ts);
   uint64_t d  = x / dayus; x -= d*dayus;
@@ -173,14 +173,13 @@ inline long timeFromDateTime(long x) {
 
 inline long dateFromDateTime(long x) {
   int64_t s  = x / (1000L * 1000L);
-  tm t;
-  localtime_r(reinterpret_cast<time_t*>(&s), &t);
+  tm*     t  = localtime(reinterpret_cast<time_t*>(&s));
   
-  t.tm_sec  = 0;
-  t.tm_min  = 0;
-  t.tm_hour = 0;
+  t->tm_sec  = 0;
+  t->tm_min  = 0;
+  t->tm_hour = 0;
 
-  return mktime(&t) * 1000L * 1000L;
+  return mktime(t) * 1000L * 1000L;
 }
 
 inline long readDateTime(const std::string& x) {

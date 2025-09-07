@@ -51,7 +51,7 @@
 #include <cassert>
 #include <cstring>
 #include <fcntl.h>
-#include <sys/mman.h>
+// #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -61,6 +61,8 @@
 
 #if defined(__APPLE__) && defined(__MACH__)
 #include <sys/event.h>
+#elif defined(__MINGW64__)
+#include <windows.h>
 #else
 #include <sys/inotify.h>
 #include <sys/epoll.h>
@@ -222,6 +224,27 @@ inline off_t filePosition(const imagefile* f) {
   return r;
 }
 
+#if defined(__MINGW64__)
+inline void allocPages(imagefile* f, size_t pages) {
+  off_t dsz = pages * f->page_size;
+  HANDLE fh = (HANDLE)_get_osfhandle(f->fd);
+  LARGE_INTEGER cp, np;
+  // get current file pointer into cp
+  np.QuadPart = 0;
+  SetFilePointerEx(fh, np, &cp, FILE_CURRENT);
+  // set new file pointer to be dsz bytes beyond the end of file
+  np.QuadPart = dsz;
+  SetFilePointerEx(fh, np, NULL, FILE_END);
+  // resize a file till current pointer
+  BOOL r = SetEndOfFile(fh);
+  if (r == 0) {
+    raiseSysError("Can't resize file", f->path);
+  }
+  // restore file pointer
+  SetFilePointerEx(fh, cp, NULL, FILE_BEGIN);
+  f->file_size += dsz;
+}
+#else
 inline void allocPages(imagefile* f, size_t pages) {
   off_t dsz = pages * f->page_size;
   int r = ::posix_fallocate(f->fd, f->file_size, dsz);
@@ -234,6 +257,7 @@ inline void allocPages(imagefile* f, size_t pages) {
   }
   f->file_size += dsz;
 }
+#endif
 
 inline void allocPage(imagefile* f) {
   allocPages(f, 1);
@@ -243,7 +267,7 @@ inline void allocPage(imagefile* f) {
 inline void fdwrite(imagefile* f, const char* x, size_t len) {
   size_t i = 0;
   while (i < len) {
-    ssize_t di = write(f->fd, x + i, len - i);
+    ssize_t di = ::write(f->fd, x + i, len - i);
 
     if (di < 0) {
       if (errno != EINTR) {
@@ -279,7 +303,7 @@ inline void write(imagefile* f, const std::vector<unsigned char>& xs) {
 inline void fdread(const imagefile* f, char* x, size_t len) {
   size_t i = 0;
   while (i < len) {
-    ssize_t di = read(f->fd, x + i, len - i);
+    ssize_t di = ::read(f->fd, x + i, len - i);
 
     if (di < 0) {
       if (errno != EINTR) {
@@ -600,6 +624,17 @@ inline fregion& createFileRegionMap(imagefile* f, file_pageindex_t page, size_t 
   // adjust our map page count to match the set increment
   pages = align<size_t>(pages, f->mmapPageMultiple);
 
+#if defined(__MINGW64__)
+  const HANDLE fh = (HANDLE)_get_osfhandle(f->fd);
+  const HANDLE mh = CreateFileMapping(fh, NULL, (f->readonly ? PAGE_READONLY : PAGE_READWRITE), 0, 0, NULL);
+  if (mh == 0) {
+    // error
+  }
+  const off_t foff = page * f->page_size;
+  const DWORD fileOffsetLow = (sizeof(off_t) <= sizeof(DWORD)) ? (DWORD)foff : (DWORD)(foff & 0xFFFFFFFFL);
+  const DWORD fileOffsetHigh = (sizeof(off_t) <= sizeof(DWORD)) ? (DWORD)0 : (DWORD)((foff >> 32) & 0xFFFFFFFFL);
+  char* d = reinterpret_cast<char*>(MapViewOfFile( mh, FILE_MAP_READ | (f->readonly ? 0 : FILE_MAP_WRITE), fileOffsetLow, fileOffsetHigh, pages * f->page_size));
+#else
   // map the specified file region into memory
   char* d = reinterpret_cast<char*>(mmap(nullptr, pages * f->page_size, PROT_READ | (f->readonly ? 0 : PROT_WRITE), MAP_SHARED, f->fd, page * f->page_size));
   if (d == MAP_FAILED) {
@@ -613,7 +648,7 @@ inline fregion& createFileRegionMap(imagefile* f, file_pageindex_t page, size_t 
       f->path
     );
   }
-
+#endif
   fregion& r = f->mappings[page];
   r.base_page = page;
   r.pages     = pages;
@@ -624,9 +659,15 @@ inline fregion& createFileRegionMap(imagefile* f, file_pageindex_t page, size_t 
 
 // munmap a region out of this file
 inline void releaseFileRegionMap(imagefile* f, const fregion& fr) {
+#if defined(__MINGW64__)
+  if(UnmapViewOfFile(fr.base) == 0) {
+    raiseSysError("Failed to unmap page " + hobbes::string::from(fr.base_page) + " from file", f->path);
+  }
+#else
   if (munmap(fr.base, fr.pages * f->page_size) != 0) {
     raiseSysError("Failed to unmap page " + hobbes::string::from(fr.base_page) + " from file", f->path);
   }
+#endif
 }
 
 // the greatest map position <= a point
@@ -735,7 +776,14 @@ inline void createFile(imagefile* f) {
   if (f->readonly) {
     throw std::runtime_error("Can't initialize empty file for read: " + f->path);
   }
-  f->page_size = assertValidPageSize(f, sysconf(_SC_PAGESIZE));
+#if defined(__MINGW64__)  
+  SYSTEM_INFO sysInfo;
+  GetSystemInfo(&sysInfo);
+  size_t psize = sysInfo.dwPageSize;
+#else
+  size_t psize = sysconf(_SC_PAGESIZE);
+#endif
+  f->page_size = assertValidPageSize(f, psize);
   f->version   = HFREGION_CURRENT_FILE_FORMAT_VERSION;
 
   // start the first page!
@@ -953,10 +1001,17 @@ inline void ensureDirExists(const std::string& path) {
   std::ostringstream pfx;
 
   for (const auto& p : ps) {
+#if defined(__MINGW64__)
+    pfx << p << "\\";
+    if (mkdir(pfx.str().c_str()) == -1 && errno != EEXIST && errno != EISDIR) {
+      throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
+    }
+#else
     pfx << p << "/";
     if (mkdir(pfx.str().c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1 && errno != EEXIST && errno != EISDIR) {
       throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
     }
+#endif    
   }
 }
 
@@ -995,6 +1050,12 @@ inline std::string uniqueFilename(const std::string& fprefix, const std::string&
 // move an existing file to a new file with a given prefix & suffix
 inline std::string moveToUniqueFilename(const std::string& oldpath, const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [&oldpath](const std::string& newpath) {
+#if defined(__MINGW64__)    
+    if (MoveFileA(oldpath.c_str(), newpath.c_str()) == 0) {
+      throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
+    }
+    return true;
+#else
     int rt = link(oldpath.c_str(), newpath.c_str());
     if (rt == 0) {
       unlink(oldpath.c_str());
@@ -1004,6 +1065,7 @@ inline std::string moveToUniqueFilename(const std::string& oldpath, const std::s
     } else {
       throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
     }
+#endif    
   });
 }
 
@@ -2139,6 +2201,22 @@ public:
 private:
   int kq;
 };
+
+#elif defined(__MINGW64__)
+class file_watch {
+  public:
+    file_watch(const std::string& path, int) {
+      this->dummy = path.size();
+    }
+    ~file_watch() {
+    }
+  
+    int wait(int maxWaitMS) const {
+        return maxWaitMS;
+    }
+  private:
+    int dummy;
+};    
 
 #else
 

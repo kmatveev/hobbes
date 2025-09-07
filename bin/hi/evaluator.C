@@ -23,7 +23,7 @@ namespace hi {
 
 // allocate a string in global memory
 hobbes::array<char>* allocGlobalStr(const char* x, size_t len) {
-  auto* r = reinterpret_cast<hobbes::array<char>*>(malloc(sizeof(long) + len * sizeof(char)));
+  auto* r = reinterpret_cast<hobbes::array<char>*>(malloc(sizeof(int64_t) + len * sizeof(char)));
   memcpy(r->data, x, len * sizeof(char));
   r->size = len;
   return r;
@@ -55,7 +55,7 @@ void bindArguments(hobbes::cc& ctx, const Args::NameVals& args) {
   using StrPair = std::pair<array<char> *, array<char> *>;
   using StrPairs = array<StrPair>;
 
-  auto* arguments = reinterpret_cast<StrPairs*>(malloc(sizeof(long) + args.size() * sizeof(StrPair)));
+  auto* arguments = reinterpret_cast<StrPairs*>(malloc(sizeof(int64_t) + args.size() * sizeof(StrPair)));
   arguments->size = 0;
   for (const auto& arg : args) {
     arguments->data[arguments->size].first  = allocGlobalStr(arg.first);

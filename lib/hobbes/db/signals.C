@@ -146,6 +146,27 @@ SystemWatch* watcher() {
   thread_local static SystemWatch w;
   return &w;
 }
+#elif defined(BUILD_MINGW)
+struct SystemWatch {
+  FileWatches fileWatches;
+  SystemWatch() {
+  }
+  size_t watchedFile(const std::string& path, int pfd) {
+    for (size_t i = 0; i < this->fileWatches.size(); ++i) {
+      if (this->fileWatches[i].fd == pfd) {
+        return i;
+      }
+    }
+    return sizeof(path.c_str());    
+  }
+  FileWatch& fileWatch(reader* r) {
+    return this->fileWatches[watchedFile(r->file(), r->unsafeGetFD())];
+  }  
+};
+SystemWatch* watcher() {
+  thread_local static SystemWatch w;
+  return &w;
+}
 #elif defined(BUILD_OSX)
 struct SystemWatch {
   FileWatches fileWatches;
@@ -266,13 +287,13 @@ struct addFileSignalF : public op {
 
     if (isDArr) {
       sz  = sizeof(long);
-      off = withContext([c, off](auto&) { return c->builder()->CreateAdd(off, cvalue(static_cast<long>(sizeof(long)))); });
+      off = withContext([c, off](auto&) { return c->builder()->CreateAdd(off, cvalue(static_cast<int64_t>(sizeof(long)))); });
     } else {
       sz = storageSizeOf(refty);
     }
 
     return withContext([&](auto&) {
-      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<long>(sz)), cvalue(static_cast<uint8_t>(isDArr ? BROffsetType::DArray : BROffsetType::Value)), sfn));
+      return fncall(c->builder(), f, f->getFunctionType(), list<llvm::Value*>(db, off, cvalue(static_cast<int64_t>(sz)), cvalue(static_cast<uint8_t>(isDArr ? BROffsetType::DArray : BROffsetType::Value)), sfn));
     });
   }
 

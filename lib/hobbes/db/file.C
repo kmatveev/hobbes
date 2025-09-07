@@ -11,7 +11,10 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
+#if defined(__MINGW64__)
+#include <windows.h>
+#else
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -398,10 +401,10 @@ uint64_t writer::unsafeStoreToOffset(size_t sz, size_t align) {
 }
 
 void* writer::unsafeStoreDArray(size_t esize, size_t len) {
-  size_t datasz = sizeof(long) + sizeof(long) + (len * esize);
+  size_t datasz = sizeof(int64_t) + sizeof(int64_t) + (len * esize);
   auto* result = reinterpret_cast<unsigned char*>(allocAnon(datasz, sizeof(size_t)));
-  *reinterpret_cast<long*>(result) = datasz;
-  return reinterpret_cast<void*>(result + sizeof(long));
+  *reinterpret_cast<int64_t*>(result) = datasz;
+  return reinterpret_cast<void*>(result + sizeof(int64_t));
 }
 
 uint64_t writer::unsafeStoreDArrayToOffset(size_t esize, size_t len) {
@@ -414,7 +417,7 @@ uint64_t writer::unsafeStoreDArrayToOffset(size_t esize, size_t len) {
 
 void* writer::unsafeStoreArray(size_t esize, size_t len) {
   if (len > 0) {
-    auto* result = reinterpret_cast<unsigned char*>(allocAnon(sizeof(long) + (len * esize), sizeof(size_t)));
+    auto* result = reinterpret_cast<unsigned char*>(allocAnon(sizeof(int64_t) + (len * esize), sizeof(size_t)));
     *reinterpret_cast<long*>(result) = len;
     return result;
   } else {
@@ -468,10 +471,17 @@ void ensureDirExists(const std::string& path) {
   std::ostringstream pfx;
 
   for (const auto& p : ps) {
+#if defined(__MINGW64__)
+    pfx << p << "\\";
+    if (mkdir(pfx.str().c_str()) == -1 && errno != EEXIST && errno != EISDIR) {
+      throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
+    }
+#else
     pfx << p << "/";
     if (mkdir(pfx.str().c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1 && errno != EEXIST && errno != EISDIR) {
       throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
     }
+#endif    
   }
 }
 
@@ -509,6 +519,12 @@ std::string uniqueFilename(const std::string& fprefix, const std::string& fsuffi
 // move an existing file to a new file with a given prefix & suffix
 std::string moveToUniqueFilename(const std::string& oldpath, const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [&oldpath](const std::string& newpath) {
+#if defined(__MINGW64__)    
+    if (MoveFileA(oldpath.c_str(), newpath.c_str()) == 0) {
+      throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
+    }
+    return true;
+#else
     int rt = link(oldpath.c_str(), newpath.c_str());
     if (rt == 0) {
       unlink(oldpath.c_str());
@@ -518,6 +534,7 @@ std::string moveToUniqueFilename(const std::string& oldpath, const std::string& 
     } else {
       throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
     }
+#endif    
   });
 }
 

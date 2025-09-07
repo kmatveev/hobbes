@@ -3,10 +3,9 @@
 
 #include <llvm/Config/llvm-config.h>
 
-#if LLVM_VERSION_MAJOR >= 11
-#include <llvm/ADT/Optional.h>
 #include <llvm/ExecutionEngine/JITSymbol.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
+#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/Support/Error.h>
 
 #include <memory>
@@ -33,7 +32,7 @@ public:
 
   llvm::Error addModule(std::unique_ptr<llvm::Module> m);
 
-  LLVM_NODISCARD llvm::Expected<llvm::JITEvaluatedSymbol>
+  [[nodiscard]] llvm::Expected<llvm::orc::ExecutorAddr>
   lookup(llvm::StringRef name);
 
   llvm::Error addExternalNonCallableSymbol(llvm::StringRef name, void *ptr);
@@ -45,5 +44,5 @@ private:
 };
 } // namespace hobbes
 
-#endif
+
 #endif

@@ -30,6 +30,12 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#if defined(__MINGW64__)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <afunix.h>
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <sys/un.h>
 #include <sys/socket.h>
@@ -37,6 +43,7 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#endif
 #include <fcntl.h>
 
 // types with static reflection info (for reflective structs, variants, etc)
@@ -76,7 +83,7 @@ static inline void wakeN(volatile uint32_t*, int) {
 // a few things have to be OS-specific here
 //  * available waiting strategy in shared memory
 //  * default waiting strategy
-#if defined(__APPLE__) && defined(__MACH__)
+#if (defined(__APPLE__) && defined(__MACH__)) || defined(__MINGW64__)
 // macOS doesn't support this flag to mmap so we can just 0 it out
 #ifndef MAP_POPULATE
 #define MAP_POPULATE 0
@@ -329,7 +336,7 @@ static inline void uxchg(volatile uint32_t* px, uint32_t nx) {
 inline void mqwrite(int fd, const uint8_t* x, size_t len) {
   size_t i = 0;
   while (i < len) {
-    ssize_t c = write(fd, x + i, len - i);
+    ssize_t c = ::write(fd, x + i, len - i);
     if (c < 0) {
       if (errno != EINTR) {
         throw std::runtime_error("Couldn't write to socket: " + std::string(strerror(errno)));
@@ -466,6 +473,8 @@ inline ProcThread thisProcThread() {
   r.first = static_cast<uint64_t>(getpid());
 #if defined(__APPLE__) && defined(__MACH__)
   pthread_threadid_np(0, &r.second);
+#elif defined(__MINGW64__)  
+  r.second = static_cast<uint64_t>(GetCurrentThreadId());
 #else
   r.second = static_cast<uint64_t>(syscall(SYS_gettid));
 #endif
@@ -569,11 +578,17 @@ struct ShQueueData {
   uint32_t unused;
 };
 
+#if defined(__MINGW64__)
+typedef HANDLE shMemFD;
+#else
+typedef int    shMemFD;
+#endif  
+
 // write data into shared memory
 class writer {
 private:
   std::string   shmname;
-  int           shmfd;
+  shMemFD       shmfd;
   pqueue_config cfg;
   WaitFn        waitFn;
   WakeFn        wakeFn;
@@ -585,6 +600,34 @@ private:
   inline uint32_t           nextIndex(volatile uint32_t* i) const { return (*i + 1) % this->cfg.count; }
 public:
   writer(const bytes& meta, const std::string& shmname, size_t qvalsz, size_t count, const WaitPolicy wp) : waitFn(hobbes::storage::waitFn(wp)), wakeFn(hobbes::storage::wakeFn(wp)) {
+
+#if defined(__MINGW64__)    
+
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+    size_t pagesz = sysInfo.dwPageSize;
+
+    // our meta-data section comes first up to the first page boundary
+    // then our data section comes next
+    auto metaLen = align<size_t>(sizeof(ShQueueHeader) + meta.size(),  pagesz);
+    auto dataLen = align<size_t>(sizeof(ShQueueData)   + qvalsz*count, pagesz);
+    size_t memLen  = metaLen + dataLen;
+
+    const DWORD memLenLow = (sizeof(size_t) <= sizeof(DWORD)) ? (DWORD)memLen : (DWORD)(memLen & 0xFFFFFFFFL);
+    const DWORD memLenHigh = (sizeof(size_t) <= sizeof(DWORD)) ? (DWORD)0 : (DWORD)((memLen >> 32) & 0xFFFFFFFFL);
+
+    HANDLE shfd = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, memLenHigh, memLenLow, shmname.c_str());
+    if (shfd == NULL) {
+      throw std::runtime_error("Failed to allocate shared memory for '" + shmname);
+    }
+
+    auto* mem = reinterpret_cast<uint8_t*>(MapViewOfFile(shfd, FILE_MAP_ALL_ACCESS, 0, 0, memLen));
+    if (mem == NULL) {
+      throw std::runtime_error("Failed to map bytes out of shared memory for '" + shmname);
+    }
+
+#else
+
     shm_unlink(shmname.c_str());
 
     // sections of shared memory should be aligned to page boundaries
@@ -614,7 +657,8 @@ public:
     if (mem == MAP_FAILED) {
       throw std::runtime_error("Failed to map bytes out of shared memory for '" + shmname + "': " + strerror(errno));
     }
-  
+
+#endif
     // write meta data
     auto* hdr = reinterpret_cast<ShQueueHeader*>(mem);
     hdr->valsz  = qvalsz;
@@ -639,7 +683,11 @@ public:
   }
 
   ~writer() {
+#if defined(__MINGW64__)
+    CloseHandle(this->shmfd);
+#else    
     shm_unlink(this->shmname.c_str());
+#endif    
   }
 
   inline const pqueue_config& config() const { return this->cfg; }
@@ -837,7 +885,7 @@ public:
 };
 
 struct QueueConnection {
-  int         shfd;
+  shMemFD     shfd;
   uint8_t*    data;
   size_t      datasz;
   size_t      pagesz;
@@ -845,6 +893,36 @@ struct QueueConnection {
 };
 
 inline QueueConnection consumeQueue(const std::string& shmname) {
+
+#if defined(__MINGW64__)
+
+  SYSTEM_INFO sysInfo;
+  GetSystemInfo(&sysInfo);
+  size_t pagesz = sysInfo.dwPageSize;
+
+  HANDLE shfd = OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, shmname.c_str());
+  if (shfd == NULL) {
+    throw std::runtime_error("Failed to allocate shared memory for '" + shmname);
+  }
+
+  auto* mem = reinterpret_cast<uint8_t*>(MapViewOfFile(shfd, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+  if (mem == NULL) {
+    throw std::runtime_error("Failed to map bytes out of shared memory for '" + shmname);
+  }
+
+  MEMORY_BASIC_INFORMATION meminfo;
+  size_t r = VirtualQuery(mem, &meminfo, sizeof(meminfo));
+  size_t datasz = meminfo.RegionSize;
+
+  if (reinterpret_cast<ShQueueHeader*>(mem)->ready == 0u) {
+    UnmapViewOfFile(mem);
+    CloseHandle(shfd);
+    throw std::runtime_error("Not ready to consume shared memory for '" + shmname + "'");
+  }
+
+
+#else
+
   // sections of shared memory are aligned to page boundaries
   long pagesz = sysconf(_SC_PAGESIZE);
   if (pagesz == -1) {
@@ -867,24 +945,27 @@ inline QueueConnection consumeQueue(const std::string& shmname) {
     close(shfd);
     throw std::runtime_error("Shared memory for '" + shmname + "' is not ready");
   }
+  size_t datasz = msb.st_size;
 
   // map memory for this data, ensure it is in a good state
-  auto* mem = reinterpret_cast<uint8_t*>(mmap(nullptr, msb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, shfd, 0));
+  auto* mem = reinterpret_cast<uint8_t*>(mmap(nullptr, datasz, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, shfd, 0));
   if (mem == MAP_FAILED) {
     close(shfd);
     throw std::runtime_error("Failed to map bytes out of shared memory for '" + shmname + "': " + strerror(errno));
   }
 
   if (reinterpret_cast<ShQueueHeader*>(mem)->ready == 0u) {
-    munmap(mem, msb.st_size);
+    munmap(mem, datasz);
     close(shfd);
     throw std::runtime_error("Not ready to consume shared memory for '" + shmname + "'");
   }
 
+#endif  
+
   QueueConnection c;
   c.shfd    = shfd;
   c.data    = mem;
-  c.datasz  = msb.st_size;
+  c.datasz  = datasz;
   c.pagesz  = pagesz;
   c.shmname = shmname;
   return c;
@@ -897,7 +978,7 @@ inline QueueConnection consumeGroup(const std::string& gname, const ProcThread& 
 // read data out of shared memory
 class reader {
 private:
-  int            shfd;
+  shMemFD        shfd;
   const uint8_t* metad;
   size_t         metasz;
   pqueue_config  cfg;
@@ -928,7 +1009,11 @@ public:
   }
 
   ~reader() {
+#if defined(__MINGW64__)
+    CloseHandle(this->shfd);
+#else
     close(this->shfd);
+#endif    
   }
 
   inline const pqueue_config& config() const { return this->cfg; }
@@ -1786,7 +1871,13 @@ struct StorageGroup {
       bytes meta;
       prepareMeta(&meta);
       
+#if defined(__MINGW64__)      
+      SYSTEM_INFO sysInfo;
+      GetSystemInfo(&sysInfo);
+      size_t pagesz = sysInfo.dwPageSize;
+#else      
       size_t pagesz = sysconf(_SC_PAGESIZE);
+#endif      
       size_t pagec  = 1 + (meta.size() / pagesz) + std::max<size_t>(this->mempages, 10);
 
       this->pipe =
@@ -2191,6 +2282,52 @@ private:
   size_t   wi;
   size_t   ri;
 
+#if defined(__MINGW64__)
+
+  void truncMapFile(size_t sz) {
+    off_t dsz = sz - this->file_size;
+    HANDLE fh = (HANDLE)_get_osfhandle(this->fd);
+    LARGE_INTEGER cp, np;
+    // get current file pointer into cp
+    np.QuadPart = 0;
+    SetFilePointerEx(fh, np, &cp, FILE_CURRENT);
+    // set new file pointer to be dsz bytes beyond the end of file
+    np.QuadPart = dsz;
+    SetFilePointerEx(fh, np, NULL, FILE_END);
+    // resize a file till current pointer
+    BOOL r = SetEndOfFile(fh);
+    if (r == 0) {
+      throw std::runtime_error("Failed to expand transaction persistence file");
+    }
+    // restore file pointer
+    SetFilePointerEx(fh, cp, NULL, FILE_BEGIN);
+    this->file_size = sz;
+
+    if (sz > this->map_size) {
+      if (this->data != nullptr) {
+        UnmapViewOfFile(this->data);
+      }
+
+      this->map_size = align<size_t>(sz, /*10MB*/10485760);
+
+      const HANDLE fh = (HANDLE)_get_osfhandle(this->fd);
+      const HANDLE mh = CreateFileMapping(fh, NULL, PAGE_READWRITE, 0, 0, NULL);
+      if (mh == 0) {
+        // error
+      }
+      this->data = reinterpret_cast<uint8_t*>(MapViewOfFile( mh, (FILE_MAP_READ | FILE_MAP_WRITE), 0, 0, this->map_size));
+      if (this->data == NULL) {
+        throw std::runtime_error("Failed to map transaction persistence file");
+      }
+      this->data_size = reinterpret_cast<size_t*>(this->data);
+      this->data      += sizeof(size_t);
+
+    }
+
+  }
+
+#else
+
   void truncMapFile(size_t sz) {
     off_t dsz = sz - this->file_size;
     int r = ::posix_fallocate(this->fd, this->file_size, dsz);
@@ -2215,7 +2352,11 @@ private:
       this->data      += sizeof(size_t);
     }
   }
+
+#endif
+
 };
+
 
 [[noreturn]] inline void runReadProcessWithTimeout(const QueueConnection& qc, const WaitPolicy wp, const std::function<std::function<void(Transaction&)>(PipeQOS, CommitMethod, const statements&)>& initF, size_t timeoutNS, const std::function<void(const reader&)>& userTimeoutF) {
   Transaction txn(qc.shmname);

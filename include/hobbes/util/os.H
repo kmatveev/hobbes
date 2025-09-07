@@ -8,6 +8,8 @@
 #if defined(__APPLE__) && defined(__MACH__)
 #include <Availability.h>
 #define BUILD_OSX
+#elif defined(__MINGW64__)
+#define BUILD_MINGW
 #else
 #define BUILD_LINUX
 #endif

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.4.1)
+cmake_minimum_required(VERSION 3.5)
 project(hobbes)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -18,7 +18,7 @@ find_package(LLVM REQUIRED CONFIG)
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -31,7 +31,10 @@ elseif(${LLVM_PACKAGE_VERSION} VERSION_LESS "11.0")
 else()
   set(jit_lib mcjit orcjit)
 endif()
+message(STATUS "System processor is: ${CMAKE_SYSTEM_PROCESSOR}")
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(llvm_arch_lib x86)
+ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
   set(llvm_arch_lib x86)
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
   set(llvm_arch_lib aarch64)
@@ -40,17 +43,7 @@ ENDIF()
 find_program(llvm-config llvm-config PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 find_program(llvm-config llvm-config)
 message(STATUS "Using LLVM config: ${llvm-config}")
-if (${LLVM_PACKAGE_VERSION} VERSION_LESS "4.0")
-  execute_process(COMMAND ${llvm-config} --libs ipo ${llvm_arch_lib} ${jit_lib}
-                  OUTPUT_VARIABLE llvm_libs
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-  execute_process(COMMAND ${llvm-config} --ldflags
-                  OUTPUT_VARIABLE llvm_ldflags
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-  execute_process(COMMAND ${llvm-config} --system-libs
-                  OUTPUT_VARIABLE sys_libs
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-else()
+
   execute_process(COMMAND ${llvm-config} --libs ipo ${llvm_arch_lib} ${jit_lib} --link-static
                   OUTPUT_VARIABLE llvm_libs
                   OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -61,7 +54,7 @@ else()
   execute_process(COMMAND ${llvm-config} --system-libs --ignore-libllvm
                   OUTPUT_VARIABLE sys_libs
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
-endif()
+
 
 message(STATUS "llvm libs: ${llvm_libs}")
 message(STATUS "llvm ldflags: ${llvm_ldflags}")

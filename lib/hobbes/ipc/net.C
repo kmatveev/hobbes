@@ -9,6 +9,11 @@
 
 #include <cstring>
 #include <fcntl.h>
+#if defined(__MINGW64__)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <afunix.h>
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -16,6 +21,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#endif
 
 namespace hobbes {
 
@@ -144,6 +150,11 @@ int connectSocket(hostent *host, int port) {
   return connectSocket(r, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
 }
 
+#if defined(__MINGW64__)
+int connectFileSocket(const std::string &filepath) {
+  return 0;
+}
+#else
 int connectFileSocket(const std::string &filepath) {
   int r = socket(AF_UNIX, SOCK_STREAM, 0);
   if (r == -1) {
@@ -158,6 +169,7 @@ int connectFileSocket(const std::string &filepath) {
 
   return connectSocket(r, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
 }
+#endif
 
 int connectSocket(const std::string &host, int port) {
   if (!host.empty() && str::isDigit(host[0])) {
