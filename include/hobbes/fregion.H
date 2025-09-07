@@ -51,7 +51,6 @@
 #include <cassert>
 #include <cstring>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -60,10 +59,12 @@
 #include <sys/time.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
+#include <sys/mman.h>
 #include <sys/event.h>
 #elif defined(__MINGW64__)
 #include <windows.h>
 #else
+#include <sys/mman.h>
 #include <sys/inotify.h>
 #include <sys/epoll.h>
 #endif
