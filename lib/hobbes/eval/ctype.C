@@ -100,7 +100,7 @@ public:
     return asPtrIf(arrayType(switchOf(v->type(), translateTypeF(innerPtrs)), v->requireLength()), asArg);
   }
 
-  llvm::Type* with(const Array* v) const override {
+  llvm::Type* with([[maybe_unused]] const Array* v) const override {
     return ptrType();
   }
 

@@ -257,7 +257,7 @@ inline llvm::ConstantInt* civalue(unsigned int x) {
   });
 }
 
-inline llvm::ConstantInt* civalue(long long x) {
+inline llvm::ConstantInt* civalue(int64_t x) {
   return withContext([x](llvm::LLVMContext& c) {
     return llvm::ConstantInt::get(llvm::IntegerType::get(c, 64), static_cast<uint64_t>(x));
   });
@@ -348,7 +348,7 @@ inline llvm::Constant* constArray(llvm::Module* m, const Constants& cs, llvm::Ty
   llvm::ArrayType*  aty  = arrayType(elemTy, cs.size());
   llvm::StructType* saty = varArrayType(elemTy, cs.size());
 
-  long long arrayLen = cs.size();
+  int64_t arrayLen = cs.size();
   Constants ncs      = elemTy->isVoidTy() ? Constants() : cs;
 
   if (boxAsGlobalRefs) {

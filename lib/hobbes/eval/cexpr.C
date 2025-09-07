@@ -414,7 +414,7 @@ public:
       builder()->SetInsertPoint(failBlock);
       fncall(builder(), f, f->getFunctionType(), list(
         this->c->internConstString(v->la().filename()),
-        cvalue(scast<long long>(v->la().p0.first)),
+        cvalue(scast<int64_t>(v->la().p0.first)),
         this->c->internConstString(ltxt),
         builder()->CreateBitCast(var, ptrType())
       ));
@@ -778,7 +778,7 @@ public:
 
     llvm::Type* elemTy = toLLVM(aty->type(), false);
     llvm::StructType* saty = varArrayType(elemTy, cs.size());
-    llvm::StructType* caty = varArrayType(elemTy);
+    // llvm::StructType* caty = varArrayType(elemTy);
     
     return withContext([&](auto&) {
       return ccast(ptrType(),

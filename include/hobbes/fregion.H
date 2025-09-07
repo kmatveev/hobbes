@@ -51,7 +51,7 @@
 #include <cassert>
 #include <cstring>
 #include <fcntl.h>
-// #include <sys/mman.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>

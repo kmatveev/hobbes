@@ -326,7 +326,7 @@ private:
 
                   // enqueue the read function for this expected result
                   let("r", fncall(var("unsafeAppendClientReadFn", functy(list(longt, urfnty), longt), la), list(
-                              constant(static_cast<long long>(chv->value()), la),
+                              constant(static_cast<int64_t>(chv->value()), la),
                               fncall(var("unsafeCast", functy(list(rfnty), urfnty), la), list(var("readFrom", qualtype(list(outcst), rfnty), la)), la)
                            ), la),
 
@@ -481,7 +481,7 @@ private:
                         fncall(
                           var("unsafeClientRead", functy(list(primty("long"), primty("long")), opaqueptr<char>(false)), la),
                           list(
-                            constant(static_cast<long long>(chv->value()), la),
+                            constant(static_cast<int64_t>(chv->value()), la),
                             var("x", primty("long"), la)
                           ),
                           la
@@ -523,7 +523,7 @@ struct printConnectionF : public op {
   llvm::Value* apply(jitcc* c, const MonoTypes& tys, const MonoTypePtr&, const Exprs& es) override {
     if (Client* conn = decodeConnType(tys[0])) {
       ExprPtr wfrtfn = var(this->showf, functy(list(primty("long")), primty("unit")), es[0]->la());
-      return c->compile(fncall(wfrtfn, list(constant(reinterpret_cast<long long>(conn), es[0]->la())), es[0]->la()));
+      return c->compile(fncall(wfrtfn, list(constant(reinterpret_cast<int64_t>(conn), es[0]->la())), es[0]->la()));
     } else {
       throw std::runtime_error("Internal error, invalid connection type: " + show(tys[0]));
     }

@@ -328,7 +328,7 @@ public:
 
       if (!isUnit(aty->type())) {
         // hack to acknowledge the fact that opaque pointers are stored as pointers within arrays
-        long long elemSize = is<OpaquePtr>(aty->type()) ? sizeof(void*) : static_cast<int64_t>(sizeOf(aty->type()));
+        int64_t elemSize = is<OpaquePtr>(aty->type()) ? sizeof(void*) : static_cast<int64_t>(sizeOf(aty->type()));
 
         llvm::Value* od = structOffset(c->builder(), saty, cmdata, 1);
         memCopy(c->builder(), offset(c->builder(), saty->getElementType(1), od, 0), 8, d0, 8, c->builder()->CreateMul(c0, cvalue(elemSize)));

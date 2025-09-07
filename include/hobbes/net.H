@@ -52,7 +52,7 @@ using bytes = std::vector<uint8_t>;
 inline void sendData(int socket, const uint8_t* d, size_t sz) {
   size_t i = 0;
   while (i < sz) {
-    char* dp = (char*)(d + i);
+    const char* dp = reinterpret_cast<const char*>(d + i);
     ssize_t c = ::send(socket, dp, sz - i, 0);
     if (c < 0) {
       throw std::runtime_error("Couldn't write to socket: " + std::string(strerror(errno)));
@@ -78,7 +78,7 @@ inline void sendBytes(int socket, const bytes& x) {
 inline void recvData(int socket, uint8_t* d, size_t sz) {
   size_t i = 0;
   while (i < sz) {
-    char* dp = (char*)(d + i);
+    char* dp = reinterpret_cast<char*>(d + i);
     ssize_t di = recv(socket, dp, sz - i, 0);
 
     if (di < 0) {
@@ -115,7 +115,7 @@ inline void setBlockingBit(int socket, bool block) {
 #endif
 
 inline size_t recvDataPartial(int socket, uint8_t* d, size_t sz) {
-  char* dp = (char*)d;
+  char* dp = reinterpret_cast<char*>(d);
   ssize_t di = recv(socket, dp, sz, 0);
 
   if (di == 0) {

@@ -2,7 +2,9 @@
 #ifndef HOBBES_UTIL_PERF_HPP_INCLUDED
 #define HOBBES_UTIL_PERF_HPP_INCLUDED
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 3
+#endif
 
 #include <ctime>
 #include <hobbes/util/os.H>
