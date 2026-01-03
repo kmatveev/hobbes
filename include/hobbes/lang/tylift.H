@@ -3,7 +3,7 @@
 #define HOBBES_LANG_TYPELIFT_HPP_INCLUDED
 
 #include <hobbes/reflect.H>
-#include <hobbes/lang/type.H>
+#include <hobbes/lang/type.H>  // MonoTypePtr, PolyTypePtr, OpaquePtr
 #include <hobbes/util/int128.H>
 #include <hobbes/util/array.H>
 #include <hobbes/util/ptr.H>

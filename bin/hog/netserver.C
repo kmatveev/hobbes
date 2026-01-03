@@ -3,7 +3,12 @@
 
 #include <hobbes/ipc/net.H>
 
+#if defined(__MINGW64__)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <unistd.h> // close
 
 namespace hog {

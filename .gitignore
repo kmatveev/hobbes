@@ -24,3 +24,5 @@ Debug/
 *.vcxproj
 *.vcxproj.filters
 *.sln
+*.zip
+*.dll

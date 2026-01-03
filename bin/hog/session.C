@@ -2,7 +2,11 @@
 #include <map>
 #include <thread>
 #include <mutex>
+
+#if defined(BUILD_MINGW)
+#else
 #include <glob.h>
+#endif
 
 #include <hobbes/util/perf.H>
 #include <hobbes/util/str.H>
