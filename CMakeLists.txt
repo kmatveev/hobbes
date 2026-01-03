@@ -93,13 +93,15 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:   /Zc:preprocessor>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:   /Zc:__cplusplus>")
 
 add_library(hobbes STATIC ${lib_files})
+add_library(hobbes-pic STATIC ${lib_files})
 IF(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
   target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB unofficial::pdcurses::pdcurses ${sys_libs})
+  target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB unofficial::pdcurses::pdcurses ${sys_libs})
 ELSE()
-  target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB CURSES::CURSES ${sys_libs})
+  target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB ${CURSES_LIBRARIES} ${sys_libs})
+  target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB ${CURSES_LIBRARIES} ${sys_libs})
 ENDIF()
-add_library(hobbes-pic STATIC ${lib_files})
-target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ${ZLIB_LIBRARIES} ${CURSES_LIBRARIES} ${sys_libs})
+
 set_property(TARGET hobbes-pic PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 
 add_executable(hi ${hi_files})
