@@ -2,6 +2,7 @@
 #include <hobbes/eval/ctype.H>
 #include <hobbes/util/llvm.H>
 #include <hobbes/eval/func.H>
+#include <hobbes/lang/expr.H>
 #include <stdexcept>
 
 namespace hobbes {

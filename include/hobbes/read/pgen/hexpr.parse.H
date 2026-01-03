@@ -156,7 +156,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 295 "hexpr.y"
+#line 296 "hexpr.y"
 
   hobbes::Module*              module;
   hobbes::ModuleDefs*          mdefs;
@@ -204,8 +204,8 @@ union YYSTYPE
   char                                    charv;
   short                                   shortv;
   int                                     intv;
-  long                                    longv;
-  __int128                                int128v;
+  int64_t                                 longv;
+  int128_t                                int128v;
   float                                   floatv;
   double                                  doublev;
 

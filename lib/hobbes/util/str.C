@@ -1,7 +1,7 @@
 #include <hobbes/util/os.H>
 #include <hobbes/util/str.H>
 #include <memory>
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <cstdlib>
 #else
 #include <wordexp.h>
@@ -16,7 +16,7 @@ std::string env(const std::string& varname) {
 }
 
 void env(const std::string& varname, const std::string& value) {
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
   _putenv_s(varname.c_str(), value.c_str());
 #else  
   setenv(varname.c_str(), value.c_str(), 1);
@@ -197,8 +197,11 @@ std::string demangle(const char* tn) {
   }
 
   int   s   = 0;
+#if defined(BUILD_MSVC)
+  std::string r(tn);
+  return r;
+#else  
   char* dmn = abi::__cxa_demangle(tn, nullptr, nullptr, &s);
-
   if (dmn == nullptr) {
     return std::string(tn);
   } else {
@@ -206,6 +209,7 @@ std::string demangle(const char* tn) {
     free(dmn);
     return r;
   }
+#endif  
 }
 
 std::string demangle(const std::type_info& ti) {
@@ -518,7 +522,7 @@ std::string expandVars(const std::string& x) {
     );
 }
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 std::string expandPath(const std::string& x) {
   return x;
 }
@@ -719,7 +723,7 @@ std::string mustEndWith(const std::string& x, const std::string& sfx) {
 }
 
 // get a set of filesystem objects matching a pattern
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 str::seq paths(const std::string& p) {
   return str::seq();
 }

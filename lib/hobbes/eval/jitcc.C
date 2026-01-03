@@ -2,6 +2,7 @@
 #include <hobbes/eval/func.H>
 #include <hobbes/util/llvm.H>
 #include <hobbes/eval/cexpr.H>
+#include <hobbes/eval/ctype.H>
 #include <hobbes/eval/jitcc.H>
 #include <hobbes/hobbes.H>
 #include <llvm/IR/Attributes.h>
@@ -20,10 +21,13 @@
 #include <stdexcept>
 #include <utility>
 
+#if defined(_MSC_VER)
+#else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wctor-dtor-privacy"
+#endif
 
 #include <hobbes/eval/orcjitcc.H>
 
@@ -37,7 +41,10 @@
 #include <llvm/Object/ELFObjectFile.h>
 #include <llvm/ExecutionEngine/JITEventListener.h>
 
+#if defined(_MSC_VER)
+#else
 #pragma GCC diagnostic pop
+#endif
 
 namespace {
 template <typename T, typename... Ts> struct hasType {

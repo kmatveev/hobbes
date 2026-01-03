@@ -36,11 +36,11 @@ namespace hobbes {
 #define HOBPP_HAS_PARGS(...) HOBPP_BOOL(HOBPP_FIRST(HOBPP_SEOAP_ __VA_ARGS__)())
 #define HOBPP_SEOAP_(...) HOBPP_BOOL(HOBPP_FIRST(HOBPP_SEOA_ __VA_ARGS__)())
 #define HOBPP_SEOA_() 0
-#define HOBPP_MAP(f, VS...) HOBPP_EVAL(HOBPP_MAPP(f, VS))
-#define HOBPP_MAPP(f, H, T...)        \
+#define HOBPP_MAP(f, ...) HOBPP_EVAL(HOBPP_MAPP(f, __VA_ARGS__))
+#define HOBPP_MAPP(f, H, ...)        \
   f H                                 \
-  HOBPP_IF_ELSE(HOBPP_HAS_PARGS(T))(  \
-    HOBPP_DEFER2(HOBPP_SMAPP)()(f, T) \
+  HOBPP_IF_ELSE(HOBPP_HAS_PARGS(__VA_ARGS__))(  \
+    HOBPP_DEFER2(HOBPP_SMAPP)()(f, __VA_ARGS__) \
   )(                                  \
   )
 #define HOBPP_SMAPP() HOBPP_MAPP

@@ -3,7 +3,10 @@
 #define HOBBES_UTIL_STR_HPP_INCLUDED
 
 #include <cstdlib>
+#if defined( _MSC_VER )
+#else
 #include <cxxabi.h>
+#endif
 #include <hobbes/util/array.H>
 #include <map>
 #include <set>

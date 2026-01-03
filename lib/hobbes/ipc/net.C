@@ -9,7 +9,7 @@
 
 #include <cstring>
 #include <fcntl.h>
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <afunix.h>

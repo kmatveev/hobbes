@@ -2,18 +2,20 @@
 #ifndef HOBBES_UTIL_LLVM_HPP_INCLUDED
 #define HOBBES_UTIL_LLVM_HPP_INCLUDED
 
+#if defined(_MSC_VER)
+#else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wold-style-cast"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wctor-dtor-privacy"
+#endif
 
 #include <llvm/Config/llvm-config.h>
 
 #include <hobbes/lang/type.H>
+#include <hobbes/util/int128.H>
 #include <hobbes/util/ptr.H>
 #include <hobbes/util/array.H>
-
-#include <hobbes/lang/type.H>
 
 #include <llvm/Analysis/Passes.h>
 #include <llvm/IR/DataLayout.h>
@@ -45,18 +47,28 @@
 
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 
+#if defined(_MSC_VER)
+#else
 #pragma GCC diagnostic pop
+#endif
 
 namespace hobbes {
 
-using int128_t = __int128;
+#if defined(_MSC_VER)
+#define INT128_TO_UINT64_ARRAY_REF_NAMED_a_a_a(x)                              \
+  const uint64_t aa_aa_aa[] = {                                                \
+      static_cast<uint64_t>(x.low),                                            \
+      static_cast<uint64_t>(x.high) };                                         \
+  const auto a_a_a = llvm::ArrayRef<uint64_t> { aa_aa_aa }
 
+#else
 #define INT128_TO_UINT64_ARRAY_REF_NAMED_a_a_a(x)                              \
   const uint64_t aa_aa_aa[] = {                                                \
       static_cast<uint64_t>(static_cast<unsigned __int128>(x) &                \
                             0xFFFFFFFFFFFFFFFF),                               \
       static_cast<uint64_t>(static_cast<unsigned __int128>(x) >> 64U)};        \
   const auto a_a_a = llvm::ArrayRef<uint64_t> { aa_aa_aa }
+#endif  
 
 inline llvm::orc::ThreadSafeContext& threadSafeContext() {
   static auto c = llvm::orc::ThreadSafeContext(std::make_unique<llvm::LLVMContext>());

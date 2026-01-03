@@ -21,14 +21,24 @@
 #include <algorithm>
 #include <numeric>
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
 // the structured data file lib
 #include "fregion.H"
 
 namespace hobbes { namespace fregion {
 
+#if defined(_MSC_VER)  
+#define PRIV_HCFREGION_LIKELY(x) (x)
+#define PRIV_HCFREGION_UNLIKELY(x) (x)
+#define PRIV_HCFREGION_COUNTLZ(x)  __lzcnt(x)
+#else
 #define PRIV_HCFREGION_LIKELY(x)   __builtin_expect((x),1)
 #define PRIV_HCFREGION_UNLIKELY(x) __builtin_expect((x),0)
 #define PRIV_HCFREGION_COUNTLZ(x)  __builtin_clz((x))
+#endif
 
 /*******************************************************
  *
@@ -694,11 +704,14 @@ template <> struct compress<uint32_t> : public compressByteSeq<uint32_t> { };
 template <> struct compress<int>      : public compressByteSeq<int>      { };
 template <> struct compress<uint64_t> : public compressByteSeq<uint64_t> { };
 template <> struct compress<long>     : public compressByteSeq<long>     { };
-template <> struct compress<__int128> : public compressByteSeq<__int128> { };
 
 #if defined(__APPLE__) && defined(__MACH__)
 template <> struct compress<int64_t>  : public compressByteSeq<int64_t>  { };
 template <> struct compress<size_t> : public compressByteSeq<size_t> { };
+#endif
+
+#if !defined(_MSC_VER)
+template <> struct compress<__int128> : public compressByteSeq<__int128> { };
 #endif
 
 // to compress floating point numbers, treat them like a structure {sign:bool, exp:b, val:nat}

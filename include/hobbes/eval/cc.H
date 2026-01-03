@@ -2,12 +2,14 @@
 #ifndef HOBBES_EVAL_CC_HPP_INCLUDED
 #define HOBBES_EVAL_CC_HPP_INCLUDED
 
-#include <hobbes/eval/jitcc.H>
-#include <hobbes/eval/search.H>
-#include <hobbes/lang/expr.H>
-#include <hobbes/lang/preds/subtype/obj.H>
-#include <hobbes/lang/tylift.H>
-#include <hobbes/lang/type.H>
+#include <hobbes/eval/jitcc.H>  // jitcc, op
+#include <hobbes/eval/search.H>  // SearchEntries, SearchCache
+#include <hobbes/lang/expr.H>  // ExprPtr, LetRec::Bindings, Definitions
+#include <hobbes/lang/preds/class.H>  // TClassPtr, TCInstancePtr
+#include <hobbes/lang/preds/subtype/obj.H>  // ObjsPtr
+#include <hobbes/lang/tylift.H>  // lift, liftValue
+#include <hobbes/lang/type.H>  // TEnvPtr, QualTypePtr, MonoTypePtr, MonoTypes, 
+#include <hobbes/lang/module.H>  // ModulePtr
 #include <hobbes/lang/typeinf.H>
 #include <hobbes/lang/typepreds.H>
 #include <hobbes/lang/tyunqualify.H>
@@ -16,6 +18,7 @@
 #include <hobbes/util/func.H>
 #include <hobbes/util/llvm.H>
 #include <hobbes/util/str.H>
+#include <hobbes/util/lannotation.H>  // LexicalAnnotation
 
 #include <iostream>
 #include <map>

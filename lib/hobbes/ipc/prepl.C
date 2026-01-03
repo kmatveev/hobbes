@@ -7,7 +7,7 @@
 #include <hobbes/util/os.H>
 #include <sstream>
 #include <string>
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <sys/stat.h>
 #else
 #include <sys/mman.h>
@@ -15,6 +15,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+
+#if defined(BUILD_MSVC)
+#define STDOUT_FILENO _fileno(stdout)
+#define STDIN_FILENO _fileno(stdin)
 #endif
 
 namespace {
@@ -49,7 +54,7 @@ struct TermResult {
 
 const TermResult TermResult::OK = {.ok = true};
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #else
 TermResult killAndWait(pid_t cpid) {
   const auto killFn = [cpid]() -> TermResult {
@@ -107,7 +112,7 @@ void execProcess(const std::string& cmd) {
   execv(args[0].c_str(), const_cast<char* const*>(&argv[0]));
 }
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 void spawn(const std::string& cmd, proc* p, const FailToKillCallback& fn) {
   return;
 }
@@ -528,7 +533,7 @@ void runMachineREPLStep(cc* c) {
   }
 }
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #else
 using Signames = std::map<int, const char *>;
 static Signames rsignames;
@@ -561,7 +566,12 @@ void runMachineREPL(cc* c) {
   
   // for now, create a log for all processes run in machine mode
   // this will help us to diagnose errors that cause the process to die
-  machineREPLLogFD = open(("./.hproc." + str::from(getpid()) + ".log").c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+  int pmode =  (_S_IREAD | _S_IWRITE);
+#else
+  int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+  machineREPLLogFD = open(("./.hproc." + str::from(getpid()) + ".log").c_str(), O_RDWR | O_CREAT, pmode);
   dbglog("Started machine-controlled process");
 
 #ifdef BUILD_LINUX
@@ -616,7 +626,7 @@ void procTypeEnv(proc* p) {
   fdwrite(p->write_fd, CMD_REPL_TENV);
 }
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 void procRead(proc* p, std::ostream* o, uint64_t waitUS) {
 }
 #else

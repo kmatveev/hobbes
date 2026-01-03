@@ -5,12 +5,16 @@
 #include <cstring>
 #include <iostream>
 #include <map>
-#include <unistd.h>
 #include <vector>
+#if defined(_MSC_VER)
+#include <io.h>  // read(), write()
+#else
+#include <unistd.h>  // maybe also use io.h ?
+#endif
+
+#include <hobbes/util/int128.H>
 
 namespace hobbes {
-
-using int128_t = __int128;
 
 #define PRIM_CODEC(T) \
   inline void encode(T x, std::ostream& out) { out.write(reinterpret_cast<const char*>(&x), sizeof(x)); } \
@@ -26,6 +30,10 @@ PRIM_CODEC(int128_t);
 PRIM_CODEC(size_t);
 PRIM_CODEC(float);
 PRIM_CODEC(double);
+
+#if defined(_MSC_VER)
+typedef int ssize_t;
+#endif
 
 inline void encode(const std::string& x, std::ostream& out) {
   encode(static_cast<size_t>(x.size()), out);

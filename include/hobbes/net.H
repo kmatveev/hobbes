@@ -23,9 +23,10 @@
 
 #include <cstring>
 #include <fcntl.h>
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <io.h> //close()
 #else
 #include <netdb.h>
 #include <netinet/in.h>
@@ -101,7 +102,7 @@ inline void recvString(int socket, std::string* x) {
   recvData(socket, reinterpret_cast<uint8_t*>(&(*x)[0]), n);
 }
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 inline void setBlockingBit(int socket, bool block) {
   u_long mode =  block ? 0 : 1;
   int result = ioctlsocket(socket, FIONBIO, &mode);
@@ -186,7 +187,7 @@ inline addrinfo* lookupAddrInfo(const std::string& host, const std::string& port
   struct addrinfo* addrs = nullptr;
   switch (getaddrinfo(hostname, service, &h, &addrs)) {
   case 0:              return addrs;
-#if !defined(__MINGW64__)  
+#if !defined(__MINGW64__) && !defined(_MSC_VER)
   case EAI_ADDRFAMILY: throw std::runtime_error("Cannot make socket connection to " + host + ":" + port);
   case EAI_SYSTEM:     throw std::runtime_error("Error while trying to resolve " + host + ":" + port + " (" + std::string(strerror(errno)) + ")");
 #endif  
@@ -964,7 +965,7 @@ template <typename ... Args>
 #define PRIV_HNET_CLIENT_INIT_RPCFUNC(n, t, _) , n(&this->s, static_cast<uint32_t>(exprID_##n))
 #define PRIV_HNET_CLIENT_MAKE_RPCFUNC(n, t, _) ::hobbes::net::RPCFunc<t> n;
 
-#define DEFINE_NET_CLIENT(T, C...) \
+#define DEFINE_NET_CLIENT(T, ...) \
   class T { \
   private: \
     int s; \
@@ -984,15 +985,15 @@ template <typename ... Args>
     void reconnect(const std::string& localAddr, const std::string& host, const std::string& port) { reconnect(::hobbes::net::makeConnection(localAddr, host, port)); } \
     void reconnect(const std::string& hostport) { reconnect(::hobbes::net::makeConnection(hostport)); } \
     \
-    PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCFUNC, C) \
+    PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCFUNC, __VA_ARGS__) \
   private: \
     enum ExprIDs { \
       NullExpr = 0 \
-      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_EXPRID, C) \
+      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_EXPRID, __VA_ARGS__) \
     }; \
     static ::hobbes::net::RPCDefs makeRPCDefs() { \
       ::hobbes::net::RPCDefs result; \
-      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCDEF, C) \
+      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCDEF, __VA_ARGS__) \
       return result; \
     } \
     void closeC() { \
@@ -1080,12 +1081,12 @@ template <typename ... Args>
 #define PRIV_HNET_CLIENT_INIT_ASYNC_RPCFUNC(n, t, _) , n(this, &this->s, static_cast<uint32_t>(exprID_##n))
 #define PRIV_HNET_CLIENT_MAKE_ASYNC_RPCFUNC(n, t, _) ::hobbes::net::AsyncRPCFunc<t> n;
 
-#define DEFINE_ASYNC_NET_CLIENT(T, C...) \
+#define DEFINE_ASYNC_NET_CLIENT(T, ...) \
   class T : public ::hobbes::net::AsyncScheduler { \
   private: \
     int s; \
   public: \
-    T(int fd) : s(::hobbes::net::initSession(fd, makeRPCDefs())) PRIV_HPPF_MAP(PRIV_HNET_CLIENT_INIT_ASYNC_RPCFUNC, C) { } \
+    T(int fd) : s(::hobbes::net::initSession(fd, makeRPCDefs())) PRIV_HPPF_MAP(PRIV_HNET_CLIENT_INIT_ASYNC_RPCFUNC, __VA_ARGS__) { } \
     T(const std::string& host, size_t port) : T(::hobbes::net::makeConnection(host, port)) { } \
     T(const std::string& host, const std::string& port) : T(::hobbes::net::makeConnection(host, port)) { } \
     T(const std::string& localAddr, const std::string& host, size_t port) : T(::hobbes::net::makeConnection(localAddr, host, port)) { } \
@@ -1102,15 +1103,15 @@ template <typename ... Args>
     void step() { while (this->asyncReaders.size() > 0 && this->asyncReaders.front()->readAndFinish()) { this->asyncReaders.pop(); } } \
     size_t pendingRequests() const { return this->asyncReaders.size(); } \
     \
-    PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_ASYNC_RPCFUNC, C) \
+    PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_ASYNC_RPCFUNC, __VA_ARGS__) \
   private: \
     enum ExprIDs { \
       NullExpr = 0 \
-      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_EXPRID, C) \
+      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_EXPRID, __VA_ARGS__) \
     }; \
     static ::hobbes::net::RPCDefs makeRPCDefs() { \
       ::hobbes::net::RPCDefs result; \
-      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCDEF, C) \
+      PRIV_HPPF_MAP(PRIV_HNET_CLIENT_MAKE_RPCDEF, __VA_ARGS__) \
       return result; \
     } \
     std::queue<::hobbes::net::AsyncReader*> asyncReaders; \

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
+#include <hobbes/util/int128.H>
 
 namespace hobbes { namespace stream {
 
@@ -73,12 +74,25 @@ template < typename Char = char, typename Traits = std::char_traits<Char> >
 
 }}
 
+#if defined(_MSC_VER)
+inline void printInt128(std::ostream& out, const int128_t& sx) {
+}
+inline std::ostream& operator<<(std::ostream& out, const int128_t& sx) {
+  printInt128(out, sx);
+  return out;
+}
+
+inline bool readInt128(const std::string& s, int128_t* x) {
+  return true;
+}
+
+#else
 #define HOBBES_ABS_INT128_POS ((static_cast<unsigned __int128>(1) << 127U) - 1)
 #define HOBBES_ABS_INT128_NEG ( static_cast<unsigned __int128>(1) << 127U)
 #define HOBBES_INT128_MIN     (static_cast<__int128>(static_cast<unsigned __int128>(1) << 127U))
 
 // show int128 values (should be disabled when/if compiler support for these types is standardized)
-inline void printInt128(std::ostream& out, const __int128& sx) {
+inline void printInt128(std::ostream& out, const int128_t& sx) {
   if (sx == 0) {
     out << "0";
   } else if (sx == HOBBES_INT128_MIN) {
@@ -104,13 +118,13 @@ inline void printInt128(std::ostream& out, const __int128& sx) {
     }
   }
 }
-inline std::ostream& operator<<(std::ostream& out, const __int128& sx) {
+inline std::ostream& operator<<(std::ostream& out, const int128_t& sx) {
   printInt128(out, sx);
   return out;
 }
 
 // s must not have trailing 'H'
-inline bool readInt128(const std::string& s, __int128* x) {
+inline bool readInt128(const std::string& s, int128_t* x) {
   if (s.empty()) return false;
 
   bool neg = s[0] == '-';
@@ -150,6 +164,7 @@ inline bool readInt128(const std::string& s, __int128* x) {
 #undef HOBBES_ABS_INT128_POS
 #undef HOBBES_ABS_INT128_NEG
 #undef HOBBES_INT128_MIN
+#endif
 
 #endif
 

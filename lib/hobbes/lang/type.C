@@ -2196,7 +2196,7 @@ private:
     } else if (pn == "long") {
       return sizeof(int64_t);
     } else if (pn == "int128") {
-      return sizeof(int128_t);
+      return 16;
     } else if (pn == "float") {
       return sizeof(float);
     } else if (pn == "double") {

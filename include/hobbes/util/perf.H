@@ -11,29 +11,28 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <chrono>
+#if !defined(BUILD_MSVC)
 #include <sys/time.h>
+#endif
 
 namespace hobbes {
 
 #if !defined(BUILD_OSX) or defined(CLOCK_REALTIME)
 // access a nanosecond timer to do performance-testing on expressions
 inline long tick() {
-  timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-    return ts.tv_sec * 1000000000L + ts.tv_nsec;
-  } else {
-    return 0;
-  }
+  auto now = std::chrono::steady_clock::now().time_since_epoch();
+  long sec = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+  long nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+  return sec * 1000000000L + nsec;
 }
 
 // access a nanosecond clock
 inline long time() {
-  timespec ts;
-  if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
-    return ts.tv_sec * 1000000000L + ts.tv_nsec;
-  } else {
-    return 0;
-  }
+  auto now = std::chrono::system_clock::now().time_since_epoch();
+  long sec = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+  long nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+  return sec * 1000000000L + nsec;
 }
 #else
 // degenerate timers on older versions of OSX

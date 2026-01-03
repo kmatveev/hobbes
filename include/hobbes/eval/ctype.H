@@ -2,7 +2,7 @@
 #ifndef HOBBES_EVAL_TYPE_HPP_INCLUDED
 #define HOBBES_EVAL_TYPE_HPP_INCLUDED
 
-#include <hobbes/lang/type.H>
+#include <hobbes/lang/type.H>  // MonoTypePtr, MonoTypes
 #include <hobbes/util/llvm.H>
 #include <vector>
 

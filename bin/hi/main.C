@@ -12,7 +12,10 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#if defined(BUILD_MSVC)
+#else
 #include <unistd.h>
+#endif
 
 #include "cio.H"
 #include "evaluator.H"
@@ -21,7 +24,7 @@
 #include <readline/history.h>
 #include <readline/readline.h>
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <windows.h>
 #endif
 
@@ -239,7 +242,7 @@ char** completions(const char* pfx, int start, int) {
 
 // allow expression evaluation to be interrupted
 static bool terminating = false;
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 static jmp_buf continueInterrupt;
 [[noreturn]] void interruptEval(int) {
   longjmp(continueInterrupt, 42);
@@ -309,7 +312,7 @@ void repl(evaluator*) {
   // poll for events and dispatch them
   hobbes::runEventLoop();
 }
-#elif defined(BUILD_MINGW)
+#elif defined(BUILD_MINGW) || defined(BUILD_MSVC)
 void repl(evaluator*) {
 
   std::ostringstream prompt;
@@ -594,7 +597,7 @@ std::string saveData(void* d, size_t sz) {
 }
 
 void runProcess(const std::string& cmd, std::ostream& out) {
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #else
   int ostdo = dup(STDOUT_FILENO);
   int pio[2]; // 0 = read, 1 = write

@@ -4,6 +4,7 @@
 
 #include <hobbes/reflect.H>
 #include <hobbes/lang/type.H>
+#include <hobbes/util/int128.H>
 #include <hobbes/util/array.H>
 #include <hobbes/util/ptr.H>
 #include <hobbes/util/str.H>
@@ -202,7 +203,7 @@ template <typename T, bool InStruct>
         return Prim::make(#n); \
       } \
     }
-
+   
 HOBBES_LIFT_PRIMITIVE(void,               unit);
 HOBBES_LIFT_PRIMITIVE(unit,               unit);
 HOBBES_LIFT_PRIMITIVE(bool,               bool);

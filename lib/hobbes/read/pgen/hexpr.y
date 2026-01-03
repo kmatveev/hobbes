@@ -36,6 +36,7 @@ using YYLTYPE = struct YYLTYPE {
 #include <hobbes/util/array.H>
 #include <hobbes/util/autorelease.H>
 #include <hobbes/util/str.H>
+#include <hobbes/util/int128.H>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -339,8 +340,8 @@ extern PatVarCtorFn patVarCtorFn;
   char                                    charv;
   short                                   shortv;
   int                                     intv;
-  long                                    longv;
-  __int128                                int128v;
+  int64_t                                 longv;
+  int128_t                                int128v;
   float                                   floatv;
   double                                  doublev;
 
