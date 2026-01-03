@@ -14,17 +14,20 @@
 #include <time.h>
 #include <iostream>
 #include <iomanip>
-#include <strings.h>
 #include <zlib.h>
+
+#if !defined(_MSC_VER)
+#include <strings.h>
+#endif
 
 namespace hobbes {
 
-static __thread region* threadRegionp = nullptr;
+static thread_local region* threadRegionp = nullptr;
 
 using NamedRegion = std::pair<std::string, region *>;
 using Regions = std::vector<NamedRegion>;
-static __thread Regions* threadRegionsp = nullptr;
-static __thread size_t   currentRegion = 0;
+static thread_local Regions* threadRegionsp = nullptr;
+static thread_local size_t   currentRegion = 0;
 
 region& threadRegion() {
   if (threadRegionp == nullptr) {
@@ -412,6 +415,22 @@ const CTM* mkCTM(int usec, const tm& xtm) {
   return r;
 }
 
+#if defined(_MSC_VER)
+const CTM* hlocaltime(datetimeT x) {
+  static const size_t USECS = 1000*1000;
+  time_t xt = x.value / USECS;
+  struct tm *xtm = localtime(&xt);
+  return mkCTM(x.value % USECS, *xtm);
+}
+
+const CTM* hgmtime(datetimeT x) {
+  static const size_t USECS = 1000*1000;
+  time_t xt = x.value / USECS;
+  struct tm *xtm = gmtime(&xt);
+  return mkCTM(x.value % USECS, *xtm);
+}
+
+#else
 const CTM* hlocaltime(datetimeT x) {
   static const size_t USECS = 1000*1000;
   time_t xt = x.value / USECS;
@@ -427,6 +446,7 @@ const CTM* hgmtime(datetimeT x) {
   gmtime_r(&xt, &xtm);
   return mkCTM(x.value % USECS, xtm);
 }
+#endif
 
 //timespanT gmtoffset(datetimeT x) {
 //  time_t xt = x.value / (1000*1000);
@@ -516,7 +536,7 @@ void dumpBytes(char* d, long len) {
 // support fd reading/writing
 //  (mark FDs as bad if there are errors rather than raising an exception and killing the process)
 std::set<int>& badFDs() {
-  static __thread std::set<int>* bfds = nullptr;
+  static thread_local std::set<int>* bfds = nullptr;
   if (bfds == nullptr) {
     bfds = new std::set<int>();
   }

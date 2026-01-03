@@ -8,7 +8,11 @@
 #include "hobbes/lang/type.H"
 
 #include <string>
+#if defined(_MSC_VER)
+typedef int pid_t;
+#else
 #include <unistd.h>
+#endif
 
 namespace hobbes {
 

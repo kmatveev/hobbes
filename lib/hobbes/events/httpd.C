@@ -8,9 +8,10 @@
 
 #include <cstring>
 #include <fcntl.h>
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <io.h>  // read
 #else
 #include <netdb.h>
 #include <netinet/in.h>
@@ -18,6 +19,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+#if defined(_MSC_VER)
+typedef int ssize_t;
 #endif
 
 namespace hobbes {
@@ -165,7 +170,7 @@ int installHTTPD(int port, HTTPRequestHandler f, void* ud) {
       int c = accept(s, nullptr, nullptr);
       if (c != -1) {
         auto* rcb = reinterpret_cast<ReqCB*>(d);
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
         u_long mode = 1;
         ioctlsocket(c, FIONBIO, &mode);
 #else
@@ -182,7 +187,7 @@ int installHTTPD(int port, HTTPRequestHandler f, void* ud) {
 
 }
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 inline void setBlockingBit(int socket, bool block) {
   u_long mode =  block ? 0 : 1;
   int result = ioctlsocket(socket, FIONBIO, &mode);

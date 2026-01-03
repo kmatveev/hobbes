@@ -10,6 +10,8 @@
 #define BUILD_OSX
 #elif defined(__MINGW64__)
 #define BUILD_MINGW
+#elif defined(_MSC_VER)
+#define BUILD_MSVC
 #else
 #define BUILD_LINUX
 #endif

@@ -12,13 +12,17 @@
 #include <ctime>
 #include <fcntl.h>
 #include <fstream>
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <windows.h>
+#include <io.h>
 #include <sys/stat.h>
 #else
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+#if defined(BUILD_MSVC)
+#define PATH_MAX MAX_PATH
 #endif
 
 namespace hi {
@@ -35,7 +39,12 @@ void writefile(const hobbes::array<char>* fname, const hobbes::array<char>* fdat
 }
 
 int openfd(const hobbes::array<char>* fname, int flags) {
-  return ::open(makeStdString(fname).c_str(), flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+    int pmode =  (_S_IREAD | _S_IWRITE);
+#else
+    int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+  return ::open(makeStdString(fname).c_str(), flags, pmode);
 }
 
 void closefd(int fd) {
@@ -56,7 +65,7 @@ void enableConsoleCmds(bool f);
 // spawn sub-processes and support basic I/O
 using PIO = std::pair<int, int>;
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 const PIO* pexec(const hobbes::array<char>* cmd) {
   return NULL;
 }
@@ -130,7 +139,7 @@ const hobbes::array<char>* runPath() {
   char buf[PATH_MAX];
   ssize_t len = -1;
 
-#if defined(BUILD_MINGW)  
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC) 
   if ((len = GetModuleFileNameA(NULL, buf, sizeof(buf) - 1)) != -1) {
     return hobbes::makeString(hobbes::str::rsplit(std::string(buf, len), "/").first);
   } else {

@@ -16,7 +16,9 @@
 #else
 #endif
 #include <fcntl.h>
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 
 using namespace hobbes::fregion;
 
@@ -471,7 +473,7 @@ void ensureDirExists(const std::string& path) {
   std::ostringstream pfx;
 
   for (const auto& p : ps) {
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
     pfx << p << "\\";
     if (mkdir(pfx.str().c_str()) == -1 && errno != EEXIST && errno != EISDIR) {
       throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
@@ -504,7 +506,12 @@ std::string withUniqueFilenameBy(const std::string& fprefix, const std::string& 
 // generate a new file with a given prefix & suffix
 std::string uniqueFilename(const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [](const std::string& newpath) {
-    int fd = open(newpath.c_str(), O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+    int pmode = (_S_IREAD | _S_IWRITE);
+#else
+    int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+    int fd = open(newpath.c_str(), O_CREAT | O_EXCL, pmode);
     if (fd >= 0) {
       close(fd);
       return true;
@@ -519,7 +526,7 @@ std::string uniqueFilename(const std::string& fprefix, const std::string& fsuffi
 // move an existing file to a new file with a given prefix & suffix
 std::string moveToUniqueFilename(const std::string& oldpath, const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [&oldpath](const std::string& newpath) {
-#if defined(__MINGW64__)    
+#if defined(__MINGW64__) || defined(_MSC_VER)   
     if (MoveFileA(oldpath.c_str(), newpath.c_str()) == 0) {
       throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
     }

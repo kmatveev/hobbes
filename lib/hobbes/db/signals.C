@@ -146,7 +146,7 @@ SystemWatch* watcher() {
   thread_local static SystemWatch w;
   return &w;
 }
-#elif defined(BUILD_MINGW)
+#elif defined(BUILD_MINGW) || defined(BUILD_MSVC)
 struct SystemWatch {
   FileWatches fileWatches;
   SystemWatch() {

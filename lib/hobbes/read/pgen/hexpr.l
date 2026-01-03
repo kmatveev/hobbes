@@ -14,6 +14,7 @@ int yycolumn = 1;
 #include <hobbes/lang/expr.H>
 #include <hobbes/lang/pat/pattern.H>
 #include <hobbes/util/autorelease.H>
+#include <hobbes/util/int128.H>
 #include <hobbes/util/stream.H>
 #include <hobbes/parse/grammar.H>
 #include <hobbes/read/pgen/hexpr.parse.H>
@@ -50,8 +51,8 @@ short str2short(const std::string& s) {
   return static_cast<short>(i);
 }
 
-__int128 str2int128(const std::string& s) {
-  __int128 i = 0;
+int128_t str2int128(const std::string& s) {
+  int128_t i = 0;
   if (!readInt128(s, &i)) {
     throw make_err(s);
   }

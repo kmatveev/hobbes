@@ -10,7 +10,11 @@
 #include <string>
 #include <stdexcept>
 #include <typeinfo>
+#if defined( _MSC_VER )
+#else
 #include <cxxabi.h>
+#endif
+
 
 namespace hobbes {
 
@@ -47,7 +51,7 @@ std::string show(const PtrAdjustmentPath& p);
 class Objs : public SubtypeEliminator {
 public:
   virtual ~Objs() = default;
-#ifndef __clang__
+#ifdef __GNUC__
   typedef __cxxabiv1::__class_type_info     class_type;
   typedef __cxxabiv1::__si_class_type_info  si_class_type;
   typedef __cxxabiv1::__vmi_class_type_info vmi_class_type;

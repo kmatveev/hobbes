@@ -50,20 +50,27 @@
 
 #include <cassert>
 #include <cstring>
+#include <io.h>  // lseek
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-
-// filesystem waits depend on platform details
-#include <sys/time.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
+#include <unistd.h>
 #include <sys/mman.h>
 #include <sys/event.h>
+#include <sys/time.h>
 #elif defined(__MINGW64__)
+#include <unistd.h>
+#include <windows.h>
+#include <sys/time.h>
+#elif defined(_MSC_VER)
+#include <direct.h>  // mkdir
+#define NOMINMAX  // disable min/max macro defined in windows.h
 #include <windows.h>
 #else
+#include <unistd.h>
+#include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/inotify.h>
 #include <sys/epoll.h>
@@ -211,11 +218,19 @@ inline bool loadFileSize(imagefile* f) {
   return true;
 }
 
-inline void seekAbs(const imagefile* f, size_t pos) {
+#if defined(_MSC_VER)
+inline void seekAbs(const imagefile* f, int64_t pos) {
+  if (_lseeki64(f->fd, pos, SEEK_SET) == -1) {
+    raiseSysError("Can't seek to offset=" + hobbes::string::from(pos) + " in file with size=" + hobbes::string::from(f->file_size), f->path);
+  }
+}
+#else
+inline void seekAbs(const imagefile* f, off_t pos) {
   if (::lseek(f->fd, pos, SEEK_SET) == -1) {
     raiseSysError("Can't seek to offset=" + hobbes::string::from(pos) + " in file with size=" + hobbes::string::from(f->file_size), f->path);
   }
 }
+#endif
 
 inline off_t filePosition(const imagefile* f) {
   off_t r = ::lseek(f->fd, 0, SEEK_CUR);
@@ -225,9 +240,9 @@ inline off_t filePosition(const imagefile* f) {
   return r;
 }
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 inline void allocPages(imagefile* f, size_t pages) {
-  off_t dsz = pages * f->page_size;
+  size_t dsz = pages * f->page_size;
   HANDLE fh = (HANDLE)_get_osfhandle(f->fd);
   LARGE_INTEGER cp, np;
   // get current file pointer into cp
@@ -368,7 +383,7 @@ inline uint64_t tocPosToFilePos(const imagefile* f, uint64_t spos) {
 }
 
 // the absolute file position of a page's entry in the page table
-inline size_t pageTOCPosition(const imagefile* f, file_pageindex_t page) {
+inline uint64_t pageTOCPosition(const imagefile* f, file_pageindex_t page) {
   // this is how many page entries fit in the first TOC page (which includes the file header)
   const uint64_t firstTPCount = (f->page_size - sizeof(filehead) - sizeof(file_pageindex_t)) / sizeof(pagedata);
 
@@ -625,7 +640,7 @@ inline fregion& createFileRegionMap(imagefile* f, file_pageindex_t page, size_t 
   // adjust our map page count to match the set increment
   pages = align<size_t>(pages, f->mmapPageMultiple);
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
   const HANDLE fh = (HANDLE)_get_osfhandle(f->fd);
   const HANDLE mh = CreateFileMapping(fh, NULL, (f->readonly ? PAGE_READONLY : PAGE_READWRITE), 0, 0, NULL);
   if (mh == 0) {
@@ -660,7 +675,7 @@ inline fregion& createFileRegionMap(imagefile* f, file_pageindex_t page, size_t 
 
 // munmap a region out of this file
 inline void releaseFileRegionMap(imagefile* f, const fregion& fr) {
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
   if(UnmapViewOfFile(fr.base) == 0) {
     raiseSysError("Failed to unmap page " + hobbes::string::from(fr.base_page) + " from file", f->path);
   }
@@ -777,7 +792,7 @@ inline void createFile(imagefile* f) {
   if (f->readonly) {
     throw std::runtime_error("Can't initialize empty file for read: " + f->path);
   }
-#if defined(__MINGW64__)  
+#if defined(__MINGW64__) || defined(_MSC_VER) 
   SYSTEM_INFO sysInfo;
   GetSystemInfo(&sysInfo);
   size_t psize = sysInfo.dwPageSize;
@@ -927,7 +942,12 @@ inline imagefile* openFile(const std::string& fname, bool readonly, uint16_t min
 
   try {
     // open the file
-    f->fd = open(fname.c_str(), readonly ? O_RDONLY : (O_RDWR | O_CREAT), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+    int pmode =  readonly ? _S_IREAD : (_S_IREAD | _S_IWRITE);
+#else
+    int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+    f->fd = open(fname.c_str(), readonly ? O_RDONLY : (O_RDWR | O_CREAT), pmode);
 
     if (f->fd < 0) {
       raiseSysError("Unable to open for " + std::string(readonly ? "read" : "write"), fname);
@@ -1002,7 +1022,7 @@ inline void ensureDirExists(const std::string& path) {
   std::ostringstream pfx;
 
   for (const auto& p : ps) {
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
     pfx << p << "\\";
     if (mkdir(pfx.str().c_str()) == -1 && errno != EEXIST && errno != EISDIR) {
       throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
@@ -1036,7 +1056,12 @@ inline std::string withUniqueFilenameBy(const std::string& fprefix, const std::s
 // generate a new file with a given prefix & suffix
 inline std::string uniqueFilename(const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [](const std::string& newpath) {
-    int fd = open(newpath.c_str(), O_CREAT | O_EXCL, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+    int pmode =  (_S_IREAD | _S_IWRITE);
+#else
+    int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+    int fd = open(newpath.c_str(), O_CREAT | O_EXCL, pmode);
     if (fd >= 0) {
       close(fd);
       return true;
@@ -1051,7 +1076,7 @@ inline std::string uniqueFilename(const std::string& fprefix, const std::string&
 // move an existing file to a new file with a given prefix & suffix
 inline std::string moveToUniqueFilename(const std::string& oldpath, const std::string& fprefix, const std::string& fsuffix) {
   return withUniqueFilenameBy(fprefix, fsuffix, [&oldpath](const std::string& newpath) {
-#if defined(__MINGW64__)    
+#if defined(__MINGW64__) || defined(_MSC_VER)   
     if (MoveFileA(oldpath.c_str(), newpath.c_str()) == 0) {
       throw std::runtime_error("Failed to move to a log database file with error: " + std::string(strerror(errno)));
     }
@@ -1168,7 +1193,9 @@ PRIV_HFREGION_DEFINE_PRIMTYS(uint64_t, "long");
 #if defined(__APPLE__) && defined(__MACH__)
 PRIV_HFREGION_DEFINE_PRIMTYS(size_t, "long");
 #endif
+#if !defined(_MSC_VER)
 PRIV_HFREGION_DEFINE_PRIMTYS(__int128, "int128");
+#endif
 PRIV_HFREGION_DEFINE_PRIMTYS(float,    "float");
 PRIV_HFREGION_DEFINE_PRIMTYS(double,   "double");
 
@@ -2146,6 +2173,8 @@ private:
   wseriess   ss;
 };
 
+#if defined(__APPLE__) && defined(__MACH__)
+
 // utility to wait for updates to a file (per platform)
 inline long fsWaitTickMS() {
   struct timeval t;
@@ -2155,8 +2184,6 @@ inline long fsWaitTickMS() {
     return 0;
   }
 }
-
-#if defined(__APPLE__) && defined(__MACH__)
 
 // macOS uses 'kqueue' to wait for filesystem events
 
@@ -2203,7 +2230,7 @@ private:
   int kq;
 };
 
-#elif defined(__MINGW64__)
+#elif defined(__MINGW64__) || defined(_MSC_VER)
 class file_watch {
   public:
     file_watch(const std::string& path, int) {
@@ -2220,6 +2247,16 @@ class file_watch {
 };    
 
 #else
+
+// utility to wait for updates to a file (per platform)
+inline long fsWaitTickMS() {
+  struct timeval t;
+  if (gettimeofday(&t, nullptr) == 0) {
+    return (t.tv_sec*1000)+(t.tv_usec/1000);
+  } else {
+    return 0;
+  }
+}
 
 // Linux uses inotify to signal filesystem events and e.g. epoll to wait for updates
 

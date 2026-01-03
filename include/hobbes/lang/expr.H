@@ -2,6 +2,7 @@
 #define HOBBES_LANG_EXPR_HPP_INCLUDED
 
 #include <hobbes/lang/type.H>
+#include <hobbes/util/int128.H>
 #include <hobbes/util/ptr.H>
 #include <hobbes/util/array.H>
 #include <hobbes/util/lannotation.H>
@@ -11,8 +12,6 @@
 #include <vector>
 
 namespace hobbes {
-
-using int128_t = __int128;
 
 class Expr : public LexicallyAnnotated {
 public:

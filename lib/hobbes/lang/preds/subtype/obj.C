@@ -11,8 +11,8 @@ namespace hobbes {
 
 void appendPath(PtrAdjustmentPath* p, const PtrAdjustmentPath& sfx);
 
-#ifdef __clang__
-// TODO -- figure out how to get class type info from clang
+#if defined(__clang__) || defined(_MSC_VER)
+// TODO -- figure out how to get class type info from clang or msvc
 bool Objs::add(const std::type_info*) {
   return false;
 }

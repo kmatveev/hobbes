@@ -15,7 +15,10 @@
 #include <cassert>
 #include <cstring>
 #include <cstdint>
+#if defined( _MSC_VER )
+#else
 #include <cxxabi.h>
+#endif
 #include <iostream>
 #include <map>
 #include <memory>
@@ -51,6 +54,9 @@ namespace string {
     inline std::string demangle() {
       if (const char* tn = typeid(T).name()) {
         int s = 0;
+#if defined( _MSC_VER )
+        return std::string(tn);
+#else        
         if (char* dmn = abi::__cxa_demangle(tn, nullptr, nullptr, &s)) {
           std::string r(dmn);
           free(dmn);
@@ -58,6 +64,7 @@ namespace string {
         } else {
           return std::string(tn);
         }
+#endif        
       } else {
         return "";
       }
@@ -110,8 +117,6 @@ namespace string {
   }
 }
 
-using int128_t = __int128;
-
 // very basic macro metaprogramming
 #define PRIV_HPPF_FIRST(a, ...) a
 #define PRIV_HPPF_SECOND(a, b, ...) b
@@ -141,19 +146,19 @@ using int128_t = __int128;
 #define PRIV_HPPF_HAS_PARGS(...) PRIV_HPPF_BOOL(PRIV_HPPF_FIRST(PRIV_HPPF_SEOAP_ __VA_ARGS__)())
 #define PRIV_HPPF_SEOAP_(...) PRIV_HPPF_BOOL(PRIV_HPPF_FIRST(PRIV_HPPF_SEOA_ __VA_ARGS__)())
 #define PRIV_HPPF_SEOA_() 0
-#define PRIV_HPPF_MAP(f, VS...) PRIV_HPPF_EVAL(PRIV_HPPF_MAPP(f, VS))
-#define PRIV_HPPF_MAPP(f, H, T...)        \
+#define PRIV_HPPF_MAP(f, ...) PRIV_HPPF_EVAL(PRIV_HPPF_MAPP(f, __VA_ARGS__))
+#define PRIV_HPPF_MAPP(f, H, ...)        \
   f H                                 \
-  PRIV_HPPF_IF_ELSE(PRIV_HPPF_HAS_PARGS(T))(  \
-    PRIV_HPPF_DEFER2(PRIV_HPPF_SMAPP)()(f, T) \
+  PRIV_HPPF_IF_ELSE(PRIV_HPPF_HAS_PARGS(__VA_ARGS__))(  \
+    PRIV_HPPF_DEFER2(PRIV_HPPF_SMAPP)()(f, __VA_ARGS__) \
   )(                                  \
   )
 #define PRIV_HPPF_SMAPP() PRIV_HPPF_MAPP
-#define PRIV_HPPF_MAPL(f, VS...) PRIV_HPPF_EVAL(PRIV_HPPF_MAPLP(f, VS))
-#define PRIV_HPPF_MAPLP(f, H, T...)              \
+#define PRIV_HPPF_MAPL(f, ...) PRIV_HPPF_EVAL(PRIV_HPPF_MAPLP(f, __VA_ARGS__))
+#define PRIV_HPPF_MAPLP(f, H, ...)              \
   f(H)                                             \
-  PRIV_HPPF_IF_ELSE(PRIV_HPPF_HAS_PARGS(T))(   \
-    PRIV_HPPF_DEFER2(PRIV_HPPF_SMAPLP)()(f, T) \
+  PRIV_HPPF_IF_ELSE(PRIV_HPPF_HAS_PARGS(__VA_ARGS__))(   \
+    PRIV_HPPF_DEFER2(PRIV_HPPF_SMAPLP)()(f, __VA_ARGS__) \
   )(                                               \
   )
 #define PRIV_HPPF_SMAPLP() PRIV_HPPF_MAPLP
@@ -404,31 +409,31 @@ template <typename T, typename ... Ts> struct tupleTail<T, Ts...> { using type =
 #define PRIV_HPPF_STRUCT_FIELD_NLOOKUP(t, n) if (o == idx) { return #n; } ++o;
 #define PRIV_HPPF_STRUCT_FIELD_SHOW(_, n) ss << ", " << #n << "=" << v.n;
 
-#define DEFINE_STRUCT(T, FIELDS...) \
+#define DEFINE_STRUCT(T, ...) \
   struct T { \
-    PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD, FIELDS) /* struct fields */ \
+    PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD, __VA_ARGS__) /* struct fields */ \
     static const bool is_hmeta_struct = true; /* identify this type as a struct */ \
-    typedef typename ::hobbes::tupleTail<int PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_TYARGL, FIELDS)>::type as_tuple_type; \
+    typedef typename ::hobbes::tupleTail<int PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_TYARGL, __VA_ARGS__)>::type as_tuple_type; \
     static std::string _hmeta_struct_type_name() { return #T; } \
     template <typename V> \
       static void meta(V& v) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_VISIT, FIELDS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_VISIT, __VA_ARGS__) \
       } \
     template <size_t idx> \
       static const char* _hmeta_field_name() { \
         size_t o = 0; \
-        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_NLOOKUP, FIELDS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_NLOOKUP, __VA_ARGS__) \
         return "???"; \
       } \
     template <typename X> \
       inline typename std::enable_if<std::is_base_of<X, T>::value, bool>::type operator==(const X& rhs) const { \
-        return true PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_EQ, FIELDS); \
+        return true PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_EQ, __VA_ARGS__); \
       } \
     template <typename X> \
       friend inline typename std::enable_if<std::is_base_of<X,T>::value && hobbes::can_show_type<typename T::as_tuple_type>::value,std::ostream&>::type operator<<(std::ostream& o, const X& v) { \
         using namespace hobbes; \
         std::ostringstream ss; \
-        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_SHOW, FIELDS); \
+        PRIV_HPPF_MAP(PRIV_HPPF_STRUCT_FIELD_SHOW, __VA_ARGS__); \
         o << "{ " << ss.str().substr(2) << " }"; \
         return o; \
       } \
@@ -441,13 +446,13 @@ template <typename T, typename ... Ts> struct tupleTail<T, Ts...> { using type =
 #define PRIV_HPPF_ENUM_SHOW(n) case SelfT::Enum::n : return "|" #n "|";
 #define PRIV_HPPF_ENUM_CTOR_COUNT(n) +1
 
-#define DEFINE_PACKED_ENUM(T, R, CTORS...) \
+#define DEFINE_PACKED_ENUM(T, R, ...) \
   struct T { \
     static const bool is_hmeta_enum = true; \
-    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_COUNT, CTORS); \
+    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_COUNT, __VA_ARGS__); \
     typedef R rep_t; \
     enum class Enum : R { \
-      PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_DEF, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_DEF, __VA_ARGS__) \
       COUNT \
     }; \
     Enum value; \
@@ -456,11 +461,11 @@ template <typename T, typename ... Ts> struct tupleTail<T, Ts...> { using type =
     T& operator=(Enum v) { this->value = v; return *this; } \
     operator Enum() const { return this->value; } \
     typedef T SelfT; \
-    PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_CTOR, CTORS) \
+    PRIV_HPPF_MAP(PRIV_HPPF_ENUM_CTOR_CTOR, __VA_ARGS__) \
     typedef std::vector<std::pair<std::string,R>> MetaSeq; \
     static MetaSeq meta() { \
       MetaSeq m; \
-      PRIV_HPPF_MAP(PRIV_HPPF_ENUM_META, CTORS); \
+      PRIV_HPPF_MAP(PRIV_HPPF_ENUM_META, __VA_ARGS__); \
       return m; \
     } \
     bool operator==(const T& rhs) const { return this->value == rhs.value; } \
@@ -468,7 +473,7 @@ template <typename T, typename ... Ts> struct tupleTail<T, Ts...> { using type =
     friend inline std::ostream& operator<<(std::ostream& o, const T& v) { o << v.show(); return o; } \
   }
 
-#define DEFINE_ENUM(T, CTORS...) DEFINE_PACKED_ENUM(T, uint32_t, CTORS)
+#define DEFINE_ENUM(T, ...) DEFINE_PACKED_ENUM(T, uint32_t, __VA_ARGS__)
 
 // standard layout sum type with efficient dispatch
 template <bool f, typename T, typename F>
@@ -730,21 +735,21 @@ template <typename ... Ts>
 #define PRIV_HPPF_VARIANT_SHOW(n, t)        case X::Enum::tag_##n: o << "|" << #n << "=" << v.n##_data << "|"; break;
 #define PRIV_HPPF_VARIANT_HMCTOR_NAME(n, _) case Enum::tag_##n: return #n;
 
-#define DEFINE_VARIANT(T, CTORS...) \
+#define DEFINE_VARIANT(T, ...) \
   template <typename R> \
     struct T##Visitor { \
-      PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_VDECL, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_VDECL, __VA_ARGS__) \
     }; \
   struct T { \
     static const bool is_hmeta_variant = true; \
     typedef T SelfT; \
-    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_CTOR_COUNT, CTORS); \
-    typedef typename ::hobbes::variantTail<int PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_TYARGL, CTORS)>::type as_variant_type; \
+    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_CTOR_COUNT, __VA_ARGS__); \
+    typedef typename ::hobbes::variantTail<int PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_TYARGL, __VA_ARGS__)>::type as_variant_type; \
     T() : tag(Enum::COUNT) { } \
-    PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_CTOR, CTORS) \
+    PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_CTOR, __VA_ARGS__) \
     T(const T& rhs) : tag(rhs.tag) { \
       switch (this->tag) { \
-      PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_PCOPY, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_VARIANT_PCOPY, __VA_ARGS__) \
       default: break; \
       } \
     } \
@@ -858,70 +863,70 @@ template <typename ... Ts>
 #define PRIV_HPPF_LBLVARIANT_GVCASE(n, lbl, t)     case Enum::tag_##n: return v.template visit<t>(#lbl, static_cast<uint32_t>(Enum::tag_##n), this->n##_data);
 #define PRIV_HPPF_LBLVARIANT_SHOW(n, lbl, t)       case Enum::tag_##n: o << "|" << #lbl << "=" << v.n##_data << "|"; break;
 
-#define DEFINE_VARIANT_WITH_LABELS(T, CTORS...) \
+#define DEFINE_VARIANT_WITH_LABELS(T, ...) \
   template <typename R> \
     struct T##Visitor { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_VDECL, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_VDECL, __VA_ARGS__) \
     }; \
   struct T { \
     static const bool is_hmeta_variant = true; \
     typedef T SelfT; \
-    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_COUNT, CTORS); \
-    typedef typename ::hobbes::variantTail<int PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_TYARGL, CTORS)>::type as_variant_type; \
+    static const uint32_t ctorCount = 0 PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_COUNT, __VA_ARGS__); \
+    typedef typename ::hobbes::variantTail<int PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_TYARGL, __VA_ARGS__)>::type as_variant_type; \
     T() : tag(Enum::COUNT) { } \
-    PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR, CTORS) \
+    PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR, __VA_ARGS__) \
     T(const T& rhs) : tag(rhs.tag) { \
       switch (this->tag) { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PCOPY, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PCOPY, __VA_ARGS__) \
       default: break; \
       } \
     } \
     ~T() { \
       switch (this->tag) { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, __VA_ARGS__) \
       default: break; \
       } \
     } \
     T& operator=(const T& rhs) { \
       if (this == &rhs) return *this; \
       switch (this->tag) { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, __VA_ARGS__) \
       default: break; \
       } \
       this->tag = rhs.tag; \
       switch (this->tag) { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PCOPY, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PCOPY, __VA_ARGS__) \
       default: break; \
       } \
       return *this; \
     } \
     template <typename V> \
       static void meta(V& v) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_META, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_META, __VA_ARGS__) \
       } \
     template <typename R> \
       R visit(const T##Visitor<R>& v) const { \
         switch (this->tag) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_VCASE, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_VCASE, __VA_ARGS__) \
         default: throw std::runtime_error("while deconstructing the " #T " variant, cannot decide payload type because tag is invalid"); \
         } \
       } \
     template <typename V> \
       void gvisit(V& v) const { \
         switch (this->tag) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_GVCASE, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_GVCASE, __VA_ARGS__) \
         default: break; \
         } \
       } \
     template <typename V> \
       void ginit(uint32_t t, V& v) { \
         switch (this->tag) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_PDESTROY, __VA_ARGS__) \
         default: break; \
         } \
         this->tag = static_cast<Enum>(t); \
         switch (this->tag) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_GINIT, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_GINIT, __VA_ARGS__) \
         default: break; \
         } \
       } \
@@ -931,26 +936,26 @@ template <typename ... Ts>
           return false; \
         } else { \
           switch (this->tag) { \
-          PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_EQCASE, CTORS) \
+          PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_EQCASE, __VA_ARGS__) \
           default: return false; \
           } \
         } \
       } \
   private: \
     enum class Enum : uint32_t { \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_TAG, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_TAG, __VA_ARGS__) \
       COUNT \
     }; \
     Enum tag; \
     union { \
       char data[1]; \
-      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_DATA, CTORS) \
+      PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_CTOR_DATA, __VA_ARGS__) \
     }; \
   public: \
     template <typename X> \
       friend inline typename std::enable_if<std::is_base_of<X,T>::value && ::hobbes::can_show_type<T::as_variant_type>::value,std::ostream&>::type operator<<(std::ostream& o, const X& v) { \
         switch (v.tag) { \
-        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_SHOW, CTORS) \
+        PRIV_HPPF_MAP(PRIV_HPPF_LBLVARIANT_SHOW, __VA_ARGS__) \
         default: o << "?"; break; \
         } \
         return o; \

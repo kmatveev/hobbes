@@ -2,13 +2,13 @@
 #ifndef HOBBES_EVAL_JITCC_HPP_INCLUDED
 #define HOBBES_EVAL_JITCC_HPP_INCLUDED
 
-#include <hobbes/lang/expr.H>
-#include <hobbes/lang/type.H>
-#include <hobbes/util/region.H>
+#include <hobbes/lang/expr.H>  // Exprs, ExprPtr, LetRec::Binding
+#include <hobbes/lang/type.H>  // PolyTypePtr, MonoTypePtr, MonoTypes, TEnvPtr
+#include <hobbes/lang/tylift.H>  // typedb
+#include <hobbes/util/region.H>  // region
 
 #include <hobbes/util/llvm.H>
 #include <hobbes/eval/func.H>
-#include <hobbes/eval/ctype.H>
 
 #include <llvm/IR/ValueHandle.h>
 #include <map>

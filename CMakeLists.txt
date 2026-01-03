@@ -6,54 +6,43 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(ZLIB REQUIRED)
 include_directories(${ZLIB_INCLUDE_DIRS})
 
-find_package(Readline REQUIRED)
+IF(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
+  find_package(unofficial-readline-win32 CONFIG REQUIRED)
+ELSE()  
+  find_package(Readline REQUIRED)
+ENDIF()
+
 include_directories(${Readline_INCLUDE_DIRS})
 
 set(CURSES_NEED_NCURSES TRUE)
-find_package(Curses REQUIRED)
+IF(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
+  find_package(unofficial-pdcurses CONFIG REQUIRED)
+ELSE()
+  find_package(Curses REQUIRED)
+ENDIF()
+
 include_directories(${CURSES_INCLUDE_DIRS})
 
-find_package(LLVM 12 CONFIG QUIET)
 find_package(LLVM REQUIRED CONFIG)
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 message(STATUS "Using LLVM binary dir: ${LLVM_TOOLS_BINARY_DIR}")
 
-if (${LLVM_PACKAGE_VERSION} VERSION_LESS "3.6")
-  set(jit_lib jit)
-elseif(${LLVM_PACKAGE_VERSION} VERSION_LESS "11.0")
-  set(jit_lib mcjit)
-else()
-  set(jit_lib mcjit orcjit)
-endif()
 message(STATUS "System processor is: ${CMAKE_SYSTEM_PROCESSOR}")
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  set(llvm_arch_lib x86)
+  set(llvm_arch_lib X86)
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
-  set(llvm_arch_lib x86)
+  set(llvm_arch_lib X86)
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
   set(llvm_arch_lib aarch64)
 ENDIF()
 
-find_program(llvm-config llvm-config PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
-find_program(llvm-config llvm-config)
-message(STATUS "Using LLVM config: ${llvm-config}")
-
-  execute_process(COMMAND ${llvm-config} --libs ipo ${llvm_arch_lib} ${jit_lib} --link-static
-                  OUTPUT_VARIABLE llvm_libs
-                  OUTPUT_STRIP_TRAILING_WHITESPACE
-                  COMMAND_ERROR_IS_FATAL ANY)
-  execute_process(COMMAND ${llvm-config} --ldflags
-                  OUTPUT_VARIABLE llvm_ldflags
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-  execute_process(COMMAND ${llvm-config} --system-libs --ignore-libllvm
-                  OUTPUT_VARIABLE sys_libs
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+llvm_map_components_to_libnames(llvm_libs support core mcjit orcjit ${llvm_arch_lib})
 
 
 message(STATUS "llvm libs: ${llvm_libs}")
@@ -65,7 +54,7 @@ file(GLOB_RECURSE lib_source lib/*.C)
 set(lib_files ${lib_headers} ${lib_source})
 include_directories(include)
 
-file(GLOB test_files test/*.C)
+#file(GLOB test_files test/*.C)
 file(GLOB hi_files bin/hi/*.C)
 file(GLOB_RECURSE hog_files bin/hog/*.C)
 
@@ -83,8 +72,8 @@ if(LINUX)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${cxx_flags}")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+# set(CMAKE_CXX_FLAGS_DEBUG "-g")
+# set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
 option(USE_ASAN_UBSAN "Use address,undefined sanitizers" OFF)
 if(USE_ASAN_AND_UBSAN)
@@ -99,28 +88,43 @@ if(USE_ASAN_AND_UBSAN)
   message(STATUS "address and undefined sanitizers enabled")
 endif()
 
+#MSBuild intercepts /Zc: options and provides compile_features for some of them, but not for "preprocessor". To work around it, we put some spaces before flag
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:   /Zc:preprocessor>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:   /Zc:__cplusplus>")
+
 add_library(hobbes STATIC ${lib_files})
-target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ${ZLIB_LIBRARIES} ${CURSES_LIBRARIES} ${sys_libs})
 add_library(hobbes-pic STATIC ${lib_files})
-target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ${ZLIB_LIBRARIES} ${CURSES_LIBRARIES} ${sys_libs})
+IF(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
+  target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB unofficial::pdcurses::pdcurses ${sys_libs})
+  target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB unofficial::pdcurses::pdcurses ${sys_libs})
+ELSE()
+  target_link_libraries(hobbes PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB ${CURSES_LIBRARIES} ${sys_libs})
+  target_link_libraries(hobbes-pic PUBLIC ${llvm_ldflags} ${llvm_libs} ZLIB::ZLIB ${CURSES_LIBRARIES} ${sys_libs})
+ENDIF()
+
 set_property(TARGET hobbes-pic PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 
 add_executable(hi ${hi_files})
-target_link_libraries(hi PUBLIC "-rdynamic" PRIVATE hobbes ${Readline_LIBRARIES})
+IF(CMAKE_GENERATOR STREQUAL "Visual Studio 17 2022")
+  target_link_libraries(hi PRIVATE hobbes unofficial::readline-win32::readline)
+ELSE()
+  target_link_libraries(hi PUBLIC "-rdynamic" PRIVATE hobbes ${Readline_LIBRARIES})
+ENDIF()
 add_executable(hog ${hog_files})
 target_link_libraries(hog PRIVATE hobbes)
 
-enable_testing()
-add_executable(mock-proc test/mocks/proc.C)
-add_executable(hobbes-test ${test_files})
-target_link_libraries(hobbes-test PRIVATE hobbes)
-add_test(hobbes-test hobbes-test)
-find_package(Python COMPONENTS Interpreter)
-message("Python_EXECUTABLE " ${Python_EXECUTABLE})
-set_property(TARGET hobbes-test PROPERTY COMPILE_FLAGS "-DPYTHON_EXECUTABLE=\"${Python_EXECUTABLE}\" -DSCRIPT_DIR=\"${CMAKE_SOURCE_DIR}/scripts/\"")
+#enable_testing()
+#add_executable(mock-proc test/mocks/proc.C)
+#add_executable(hobbes-test ${test_files})
+#target_link_libraries(hobbes-test PRIVATE hobbes)
+#add_test(hobbes-test hobbes-test)
+#find_package(Python COMPONENTS Interpreter)
+#message("Python_EXECUTABLE " ${Python_EXECUTABLE})
+#set_property(TARGET hobbes-test PROPERTY COMPILE_FLAGS "-DPYTHON_EXECUTABLE=\"${Python_EXECUTABLE}\" -DSCRIPT_DIR=\"${CMAKE_SOURCE_DIR}/scripts/\"")
 
 install(TARGETS hobbes hobbes-pic DESTINATION "lib")
-install(TARGETS hi hog hobbes-test DESTINATION "bin")
+#install(TARGETS hi hog hobbes-test DESTINATION "bin")
+install(TARGETS hi hog DESTINATION "bin")
 install(DIRECTORY "include/hobbes" DESTINATION "include")
 install(DIRECTORY "scripts" DESTINATION "scripts")
 

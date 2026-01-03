@@ -11,7 +11,6 @@
 #include <map>
 #include <stdexcept>
 #include <typeinfo>
-#include <cxxabi.h>
 
 #include <memory>
 

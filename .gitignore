@@ -16,3 +16,11 @@ cmake_install.cmake
 build.ninja
 hi.exe
 libhobbes.a
+hobbes.dir/
+hobbes-pic.dir/
+hi.dir/
+hog.dir/
+Debug/
+*.vcxproj
+*.vcxproj.filters
+*.sln

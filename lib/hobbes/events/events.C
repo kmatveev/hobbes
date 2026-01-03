@@ -10,8 +10,9 @@
 
 #ifdef BUILD_LINUX
 #include <sys/epoll.h>
-#elif defined(BUILD_MINGW)
+#elif defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <windows.h>
+#include <io.h>
 #elif defined(BUILD_OSX)
 #include <sys/event.h>
 #endif
@@ -186,7 +187,7 @@ void runEventLoop(int microsecondDuration, const std::function<bool()>& stopFn) 
   } while (t < tf && !stopFn());
 }
 
-#elif defined(BUILD_MINGW)
+#elif defined(BUILD_MINGW) || defined(BUILD_MSVC)
 
 thread_local bool           cpInitialized = false;
 thread_local HANDLE         cpFD          = 0;

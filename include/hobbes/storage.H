@@ -27,10 +27,14 @@
 #include <tuple>
 #include <vector>
 
+#if defined(_MSC_VER)
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <afunix.h>
@@ -83,7 +87,7 @@ static inline void wakeN(volatile uint32_t*, int) {
 // a few things have to be OS-specific here
 //  * available waiting strategy in shared memory
 //  * default waiting strategy
-#if (defined(__APPLE__) && defined(__MACH__)) || defined(__MINGW64__)
+#if (defined(__APPLE__) && defined(__MACH__)) || defined(__MINGW64__) || defined(_MSC_VER)
 // macOS doesn't support this flag to mmap so we can just 0 it out
 #ifndef MAP_POPULATE
 #define MAP_POPULATE 0
@@ -473,7 +477,7 @@ inline ProcThread thisProcThread() {
   r.first = static_cast<uint64_t>(getpid());
 #if defined(__APPLE__) && defined(__MACH__)
   pthread_threadid_np(0, &r.second);
-#elif defined(__MINGW64__)  
+#elif defined(__MINGW64__) || defined(_MSC_VER) 
   r.second = static_cast<uint64_t>(GetCurrentThreadId());
 #else
   r.second = static_cast<uint64_t>(syscall(SYS_gettid));
@@ -578,7 +582,7 @@ struct ShQueueData {
   uint32_t unused;
 };
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 typedef HANDLE shMemFD;
 #else
 typedef int    shMemFD;
@@ -601,7 +605,7 @@ private:
 public:
   writer(const bytes& meta, const std::string& shmname, size_t qvalsz, size_t count, const WaitPolicy wp) : waitFn(hobbes::storage::waitFn(wp)), wakeFn(hobbes::storage::wakeFn(wp)) {
 
-#if defined(__MINGW64__)    
+#if defined(__MINGW64__) || defined(_MSC_VER)
 
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
@@ -683,7 +687,7 @@ public:
   }
 
   ~writer() {
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
     CloseHandle(this->shmfd);
 #else    
     shm_unlink(this->shmname.c_str());
@@ -894,7 +898,7 @@ struct QueueConnection {
 
 inline QueueConnection consumeQueue(const std::string& shmname) {
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 
   SYSTEM_INFO sysInfo;
   GetSystemInfo(&sysInfo);
@@ -1009,7 +1013,7 @@ public:
   }
 
   ~reader() {
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
     CloseHandle(this->shfd);
 #else
     close(this->shfd);
@@ -1871,7 +1875,7 @@ struct StorageGroup {
       bytes meta;
       prepareMeta(&meta);
       
-#if defined(__MINGW64__)      
+#if defined(__MINGW64__) || defined(_MSC_VER)
       SYSTEM_INFO sysInfo;
       GetSystemInfo(&sysInfo);
       size_t pagesz = sysInfo.dwPageSize;
@@ -2282,7 +2286,7 @@ private:
   size_t   wi;
   size_t   ri;
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 
   void truncMapFile(size_t sz) {
     off_t dsz = sz - this->file_size;

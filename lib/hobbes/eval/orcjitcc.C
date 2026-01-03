@@ -89,15 +89,14 @@ llvm::Expected<llvm::orc::ExecutorAddr> ORCJIT::lookup(llvm::StringRef name) {
 
 llvm::Error ORCJIT::addExternalCallableSymbol(llvm::StringRef name, void *ptr) {
   return jit->getMainJITDylib().define(llvm::orc::absoluteSymbols(
-      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef::fromPtr(
-                             ptr, llvm::JITSymbolFlags::Exported |
-                                      llvm::JITSymbolFlags::Callable)}}));
+      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef(llvm::orc::ExecutorAddr::fromPtr(ptr), 
+                             llvm::JITSymbolFlags::Exported | llvm::JITSymbolFlags::Callable)}}));
 }
 
 llvm::Error ORCJIT::addExternalNonCallableSymbol(llvm::StringRef name,
                                                  void *ptr) {
   return jit->getMainJITDylib().define(llvm::orc::absoluteSymbols(
-      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef::fromPtr(ptr)}}));
+      {{(*mangle)(name), llvm::orc::ExecutorSymbolDef(llvm::orc::ExecutorAddr::fromPtr(ptr), llvm::JITSymbolFlags::Exported )}}));
 }
 } // namespace hobbes
 

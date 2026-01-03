@@ -2,8 +2,8 @@
 #ifndef HOBBES_EVAL_CMODULE_HPP_INCLUDED
 #define HOBBES_EVAL_CMODULE_HPP_INCLUDED
 
-#include <hobbes/eval/func.H>
-#include <hobbes/lang/module.H>
+#include <hobbes/lang/expr.H>   //  ExprPtr
+#include <hobbes/lang/module.H>  // ModulePtr
 
 #include <functional>
 

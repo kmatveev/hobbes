@@ -3,12 +3,19 @@
 #include "www.H"
 #include <fstream>
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
 #include <windows.h>
 #else
 #endif
 #include <sys/types.h>
+#if defined(BUILD_MSVC)
+#include <io.h>
+#define PATH_MAX MAX_PATH
+#define STDOUT_FILENO _fileno(stdout)
+#define STDIN_FILENO _fileno(stdin)
+#else
 #include <sys/time.h>
+#endif
 // #include <sys/resource.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -40,7 +47,7 @@ bool fileExists(const std::string& x) {
 
 // find the target of a symlink
 std::string readLink(const std::string& path) {
-#if defined(BUILD_MINGW)  
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC) 
   return "";
 #else
   char buf[PATH_MAX];
@@ -56,7 +63,7 @@ std::string readLink(const std::string& path) {
 
 // get the path to the directory where this executable is running
 std::string exeDir() {
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
   char buf[PATH_MAX];
   int len = GetModuleFileNameA(NULL, buf, sizeof(buf) - 1);
   return std::string(buf, len);
@@ -468,7 +475,7 @@ void WWWServer::eval(const hobbes::HTTPRequest& req, int fd) {
 
 void WWWServer::evalHTTPRequest(const hobbes::HTTPRequest& req, int fd, void* ud) {
   // go back to blocking mode for this socket .. we have nothing left to incrementally read
-#if defined(__MINGW64__)
+#if defined(BUILD_MINGW) || defined(BUILD_MSVC)
   u_long mode = 0;
   ioctlsocket(fd, FIONBIO, &mode);
 #else

@@ -77,7 +77,7 @@ LexicalAnnotation LexicalAnnotation::merge(const LexicalAnnotation& a0, const Le
 using AnnContextStack = std::stack<BuffOrFilenamePtr>;
 
 static AnnContextStack& annotationCtxStack() {
-  static __thread AnnContextStack* actxs = nullptr;
+  static thread_local AnnContextStack* actxs = nullptr;
   if (actxs == nullptr) {
     actxs = new AnnContextStack();
   }
