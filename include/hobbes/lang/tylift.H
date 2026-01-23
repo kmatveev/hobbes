@@ -107,7 +107,7 @@ template <typename T, bool InStruct> struct defaultLift<T&,       InStruct> : pu
 template <typename T, bool InStruct>
   struct defaultLift<T*, InStruct> {
     static MonoTypePtr type(typedb& tenv) {
-      return tenv.opaquePtrMonoType(typeid(T*), 0, false);
+      return tenv.opaquePtrMonoType(typeid(T), 0, false);
     }
   };
 template <typename T, bool InStruct, typename P>

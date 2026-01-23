@@ -191,6 +191,9 @@ std::string showRightAlignedTable(const seqs& tbl) {
   return ss.str();
 }
 
+// these prefixes are returned by MSVC std::type_info::name()
+const seq msvcTypePrefixes = {"struct ", "class ", "enum ", "union "};
+
 std::string demangle(const char* tn) {
   if (tn == nullptr) {
     return "";
@@ -199,7 +202,7 @@ std::string demangle(const char* tn) {
   int   s   = 0;
 #if defined(BUILD_MSVC)
   std::string r(tn);
-  return r;
+  return removePrefixes(r, msvcTypePrefixes);
 #else  
   char* dmn = abi::__cxa_demangle(tn, nullptr, nullptr, &s);
   if (dmn == nullptr) {
@@ -261,6 +264,15 @@ seq csplit(const std::string& str, const std::string& pivot) {
   }
 
   return ret;
+}
+
+std::string removePrefixes(const std::string& srcstr, const seq prefixes) {
+  for (const std::string& prefix : prefixes) {
+    if (srcstr.rfind(prefix, 0) == 0) {
+      return srcstr.substr(prefix.length());
+    }
+  }
+  return srcstr;
 }
 
 pair readWhile(bool (*P)(char), const std::string& s) {

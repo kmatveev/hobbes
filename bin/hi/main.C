@@ -316,7 +316,7 @@ void repl(evaluator*) {
 void repl(evaluator*) {
 
   std::ostringstream prompt;
-  prompt << resetfmt() << setbold() << setfgc(colors.promptfg) << "> " << setfgc(colors.stdtextfg) << std::flush;
+  prompt << "> " << std::flush;
   const char* pr = prompt.str().c_str();
 
   // set up readline autocompletion

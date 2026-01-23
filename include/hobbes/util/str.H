@@ -230,6 +230,7 @@ pair splitAt(const std::string& s, unsigned int i);
 pair lsplit(const std::string& s, const std::string& ss);
 pair rsplit(const std::string& s, const std::string& ss);
 seq csplit(const std::string& s, const std::string& ss);
+std::string removePrefixes(const std::string& str, const seq prefixes);
 pair readWhile(bool (*P)(char), const std::string& s);
 
 bool isDigit(char c);
