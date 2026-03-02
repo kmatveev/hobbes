@@ -469,7 +469,7 @@ template <typename T, typename ... Ts> struct tupleTail<T, Ts...> { using type =
       return m; \
     } \
     bool operator==(const T& rhs) const { return this->value == rhs.value; } \
-    std::string show() const { switch (this->value) { PRIV_HPPF_MAP(PRIV_HPPF_ENUM_SHOW, CTORS); default: return "?"; } } \
+    std::string show() const { switch (this->value) { PRIV_HPPF_MAP(PRIV_HPPF_ENUM_SHOW, __VA_ARGS__); default: return "?"; } } \
     friend inline std::ostream& operator<<(std::ostream& o, const T& v) { o << v.show(); return o; } \
   }
 

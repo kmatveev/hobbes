@@ -29,6 +29,7 @@
 
 #if defined(_MSC_VER)
 #include <io.h>
+#define W_OK 2
 #else
 #include <unistd.h>
 #endif
@@ -59,12 +60,10 @@ namespace spin {
 
 #if defined(CLOCK_REALTIME)
 inline long poll_tickNS() {
-  timespec ts;
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-    return ts.tv_sec * 1000000000L + ts.tv_nsec;
-  } else {
-    return 0;
-  }
+  auto now = std::chrono::steady_clock::now().time_since_epoch();
+  long sec = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+  long nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+  return sec * 1000000000L + nsec;
 }
 #else
 inline long poll_tickNS() {
@@ -87,7 +86,7 @@ static inline void wakeN(volatile uint32_t*, int) {
 // a few things have to be OS-specific here
 //  * available waiting strategy in shared memory
 //  * default waiting strategy
-#if (defined(__APPLE__) && defined(__MACH__)) || defined(__MINGW64__) || defined(_MSC_VER)
+#if (defined(__APPLE__) && defined(__MACH__)) || defined(__MINGW64__)
 // macOS doesn't support this flag to mmap so we can just 0 it out
 #ifndef MAP_POPULATE
 #define MAP_POPULATE 0
@@ -137,6 +136,7 @@ namespace platform = spin;
 
 }}} // namespace hobbes { namespace storage { namespace internal
 
+#elif defined(_MSC_VER)
 #else
 
 #include <linux/futex.h>
@@ -253,8 +253,13 @@ namespace hobbes { namespace storage {
 using bytes = std::vector<uint8_t>;
 
 // write transactions into shared memory
+#if defined(_MSC_VER)
+#define PRIV_HSTORE_LIKELY(x)   (x)
+#define PRIV_HSTORE_UNLIKELY(x) (x)
+#else
 #define PRIV_HSTORE_LIKELY(x)   __builtin_expect((x),1)
 #define PRIV_HSTORE_UNLIKELY(x) __builtin_expect((x),0)
+#endif
 
 template <typename T>
   T align(T x, T m) {

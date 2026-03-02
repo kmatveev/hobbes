@@ -3,9 +3,10 @@
 #include <thread>
 #include <mutex>
 
-#if defined(BUILD_MINGW)
+#if defined(__MINGW64__)
+#include <windows.h>  // FindFirstFile(), FindNextFile()
 #else
-#include <glob.h>
+#include <glob.h> // glob()
 #endif
 
 #include <hobbes/util/perf.H>
@@ -68,10 +69,17 @@ std::string ensureDirExists(const std::string& dirPfx) {
   std::ostringstream pfx;
   if (!ps.empty()) {
     for (size_t i = 0; i < (ps.size()-1); ++i) {
+#if defined(__MINGW64__) || defined(_MSC_VER)
+      pfx << ps[i] << "\\";
+      if (mkdir(pfx.str().c_str()) == -1 && errno != EEXIST) {
+        throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
+      }
+#else
       pfx << ps[i] << "/";
       if (mkdir(pfx.str().c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == -1 && errno != EEXIST) {
         throw std::runtime_error("Failed to make directory '" + pfx.str() + "' with error: " + strerror(errno));
       }
+#endif
     }
   } else {
     pfx << ".";
@@ -173,6 +181,30 @@ private:
   std::string tmpPath;
   writer*     f;
 
+#if defined(__MINGW64__) || defined(_MSC_VER)
+  static writer* findMatchingFile(const std::string& dirPfx, storage::CommitMethod cm, const storage::statements& stmts) {
+    WIN32_FIND_DATA ffd;
+    const char* pattern = (dirPfx + "*.log").c_str();
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    hFind = FindFirstFile(pattern, &ffd);
+    if (hFind != INVALID_HANDLE_VALUE) {
+      do {
+        writer* f = nullptr;
+        try {
+          f = new writer(ffd.cFileName);
+          if (fileMatchesStatements(f, cm, stmts)) {
+            return f;
+          } else {
+            delete f;
+          }
+        } catch (...) {
+          delete f;
+        }        
+      } while (FindNextFile(hFind, &ffd) != 0);
+    }
+    return nullptr; // couldn't find any matching file
+  }
+#else
   static writer* findMatchingFile(const std::string& dirPfx, storage::CommitMethod cm, const storage::statements& stmts) {
     glob_t g;
     if (glob((dirPfx + "*.log").c_str(), GLOB_NOSORT, nullptr, &g) == 0) {
@@ -194,6 +226,7 @@ private:
 
     return nullptr; // couldn't find any matching file
   }
+#endif
 
   static bool fileMatchesStatements(writer* f, storage::CommitMethod cm, const storage::statements& stmts) {
     // find the log space variant

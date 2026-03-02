@@ -17,7 +17,11 @@
 #include <utility>
 #include <vector>
 
-#include <glob.h>
+#if defined(__MINGW64__)
+#include <windows.h>  // FindFirstFile(), FindNextFile()
+#else
+#include <glob.h> // glob()
+#endif
 #include <zlib.h>
 
 #include "batchsend.H"
@@ -96,6 +100,22 @@ void sendSegmentFiles(NetConnection& connection, const std::string& localdir) {
   using OrderedSegFiles = std::map<time_t, std::set<std::string>>;
   OrderedSegFiles segfiles;
 
+ #if defined(__MINGW64__) || defined(_MSC_VER)
+  WIN32_FIND_DATA ffd;
+  const char* pattern = (localdir + "/segment-*.gz").c_str();
+  HANDLE hFind = INVALID_HANDLE_VALUE;
+  hFind = FindFirstFile(pattern, &ffd);
+  if (hFind != INVALID_HANDLE_VALUE) {
+    do {
+      struct stat st;
+      if (stat(ffd.cFileName, &st) == 0) {
+        segfiles[st.st_ctime].insert(ffd.cFileName);
+      } else {
+        out() << "couldn't stat '" << ffd.cFileName << "' (" << strerror(errno) << ")" << std::endl;
+      }
+    } while (FindNextFile(hFind, &ffd) != 0);
+  }
+#else 
   glob_t g;
   if (glob((localdir + "/segment-*.gz").c_str(), GLOB_NOSORT, nullptr, &g) == 0) {
     for (size_t i = 0; i < g.gl_pathc; ++i) {
@@ -108,6 +128,7 @@ void sendSegmentFiles(NetConnection& connection, const std::string& localdir) {
     }
     globfree(&g);
   }
+#endif
 
   // try to send all segments in order and then discard them
   for (const auto& sfns : segfiles) {
@@ -316,7 +337,11 @@ struct BatchSendSession {
       for (const auto & destination : destinations) {
         // we should save the init message to a special file, else pick a generic segment file name
         std::string pubfilename = destination.localdir + "/" + ((this->c == 0) ? "init.gz" : segmentFileName(this->c));
+#if defined(__MINGW64__)
+        auto rc = CreateHardLink(pubfilename.c_str(), this->tempfilename.c_str(), NULL);
+#else
         auto rc = link(this->tempfilename.c_str(), pubfilename.c_str());
+#endif
         assert(rc == rc); // avoid an error if this return value is ignored
       }
       unlink(this->tempfilename.c_str());
@@ -337,6 +362,13 @@ struct BatchSendSession {
 
   bool completed() const {
     return std::all_of(destinations.begin(), destinations.end(), [](const Destination& d) {
+ #if defined(__MINGW64__) || defined(_MSC_VER)
+      WIN32_FIND_DATA ffd;
+      const char* pattern = (d.localdir + "/segment-*.gz").c_str();
+      HANDLE hFind = INVALID_HANDLE_VALUE;
+      hFind = FindFirstFile(pattern, &ffd);
+      return (hFind == INVALID_HANDLE_VALUE);
+#else       
       glob_t g;
       auto ret = glob((d.localdir + "/segment-*.gz").c_str(), GLOB_NOSORT, nullptr, &g);
       if (ret == 0) {
@@ -345,6 +377,7 @@ struct BatchSendSession {
         return remaining == 0;
       }
       return ret == GLOB_NOMATCH;
+#endif
     });
   }
 

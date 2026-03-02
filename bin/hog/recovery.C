@@ -86,7 +86,7 @@ static std::vector<RecoveredDetails> recoverSessionInformation() {
   const std::vector<SessionRecovered> allSessionsRecovered = retrieveFromStats<SessionRecovered>(reader);
   for (const ProcessEnvironment& processEnvironment : allProcessEnvironments) {
     // we don't care about previous recovery sessions
-    if (SessionType::Enum::Recovery == processEnvironment.sessionType) {
+    if (SessionType::Enum::Recovery == processEnvironment.sessionType.value) {
       continue;
     }
     RecoveredDetails details;
