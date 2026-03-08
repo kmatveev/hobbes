@@ -149,7 +149,7 @@ static std::vector<std::string> argvToStrings(const char** ts, const int count) 
 }
 
 int main(int argc, const char** argv) {
-#if !defined(BUILD_MINGW)
+#if !defined(BUILD_MINGW) && !defined(BUILD_MSVC)
   signal(SIGPIPE, SIG_IGN);
 #endif
   try {

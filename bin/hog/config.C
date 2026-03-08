@@ -2,10 +2,8 @@
 #include <ostream>
 #include <stdexcept>
 #include <vector>
-#include <hobbes/db/series.H>
-#include <hobbes/util/str.H>
 
-#include "config.H"
+#include "config.H" // it will include required hobbes/db/series.H and hobbes/util/str.H
 
 namespace hog {
 

@@ -18,7 +18,7 @@
 
 namespace hobbes {
 
-#if !defined(BUILD_OSX) or defined(CLOCK_REALTIME)
+#if !defined(BUILD_OSX) || defined(CLOCK_REALTIME)
 // access a nanosecond timer to do performance-testing on expressions
 inline long tick() {
   auto now = std::chrono::steady_clock::now().time_since_epoch();

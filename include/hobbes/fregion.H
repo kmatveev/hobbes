@@ -65,9 +65,11 @@
 #include <windows.h>
 #include <sys/time.h>
 #elif defined(_MSC_VER)
+#define NOMINMAX     // disable min/max macro defined in windows.h
 #include <direct.h>  // mkdir
-#define NOMINMAX  // disable min/max macro defined in windows.h
 #include <windows.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #else
 #include <unistd.h>
 #include <sys/time.h>

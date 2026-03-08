@@ -2,14 +2,18 @@
 #include <hobbes/util/codec.H> // fdwrite
 #include <hobbes/util/os.H> // BUILD_LINUX, BUILD_OSX
 
-#if defined(BUILD_MINGW)
+#if defined(BUILD_MINGW) || defined(_MSC_VER)
 #include <winsock2.h>
 #else
 #include <sys/socket.h>
+#include <unistd.h>
+#endif
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #endif
 #include <sys/stat.h>
 #include <stdexcept>
-#include <unistd.h>
 
 #ifdef BUILD_LINUX
 #include <sys/sendfile.h>

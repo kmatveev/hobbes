@@ -30,12 +30,15 @@
 #if defined(_MSC_VER)
 #include <io.h>
 #define W_OK 2
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
 #else
 #include <unistd.h>
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
 #if defined(__MINGW64__) || defined(_MSC_VER)
+#define NOMINMAX     // disable min/max macro defined in windows.h
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <afunix.h>
@@ -58,7 +61,7 @@ namespace hobbes { namespace storage { namespace internal {
 
 namespace spin {
 
-#if defined(CLOCK_REALTIME)
+#if defined(_MSC_VER) || defined(CLOCK_REALTIME)
 inline long poll_tickNS() {
   auto now = std::chrono::steady_clock::now().time_since_epoch();
   long sec = std::chrono::duration_cast<std::chrono::seconds>(now).count();
@@ -137,6 +140,51 @@ namespace platform = spin;
 }}} // namespace hobbes { namespace storage { namespace internal
 
 #elif defined(_MSC_VER)
+
+namespace hobbes { namespace storage { namespace internal {
+
+namespace spin {
+
+static inline void waitForUpdate(volatile uint32_t* p, int eqV) {
+  while (true) {
+    for (size_t c = 0; c < 4096; ++c) {
+      if (*p != eqV) {
+        return;
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
+  }
+}
+static inline void waitForUpdate(volatile uint32_t* p, int eqV, size_t timeoutNS, const std::function<void()>& timeoutF) {
+  if (timeoutNS == 0) {
+    waitForUpdate(p, eqV);
+    return;
+  }
+
+  long t0 = poll_tickNS();
+
+  while (true) {
+    for (size_t c = 0; c < 4096; ++c) {
+      if (*p != eqV) {
+        return;
+      }
+    }
+
+    long t1 = poll_tickNS();
+    if ((t1-t0) >= timeoutNS) {
+      timeoutF();
+      t0 = t1;
+    }
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
+  }
+}
+
+} // namespace spin
+
+namespace platform = spin;
+
+}}} // namespace hobbes { namespace storage { namespace internal
+
 #else
 
 #include <linux/futex.h>
@@ -328,6 +376,12 @@ static inline void __xchg(volatile unsigned long x, volatile void *ptr, std::siz
         assert(0);
     }
 }
+#define xchg __sync_lock_test_and_set
+#elif defined(_MSC_VER)
+static inline void uxchg(volatile uint32_t* px, uint32_t nx) {
+  InterlockedExchange(px,nx);
+}
+#define xchg InterlockedExchange
 #else
 static inline void uxchg(volatile uint32_t* px, uint32_t nx) {
   __asm__ __volatile__(
@@ -337,9 +391,9 @@ static inline void uxchg(volatile uint32_t* px, uint32_t nx) {
     :"memory"
   );
 }
+#define xchg __sync_lock_test_and_set
 #endif
 
-#define xchg __sync_lock_test_and_set
 
 // define a local socket for registering new storage queues
 inline void mqwrite(int fd, const uint8_t* x, size_t len) {
@@ -1179,7 +1233,9 @@ PRIV_HSTORE_DEFINE_PRIMTYS(uint64_t, "long");
 #if defined(__APPLE__) && defined(__MACH__)
 PRIV_HSTORE_DEFINE_PRIMTYS(size_t, "long");
 #endif
+#if !defined(_MSC_VER)
 PRIV_HSTORE_DEFINE_PRIMTYS(__int128, "int128");
+#endif
 PRIV_HSTORE_DEFINE_PRIMTYS(float,    "float");
 PRIV_HSTORE_DEFINE_PRIMTYS(double,   "double");
 
@@ -1419,7 +1475,7 @@ template <typename U, typename V>
   };
 
 // store reflective structs
-#define DEFINE_HSTORE_STRUCT(T, FIELDS...) DEFINE_STRUCT(T, FIELDS)
+#define DEFINE_HSTORE_STRUCT(T, ...) DEFINE_STRUCT(T, __VA_ARGS__)
 
 struct defStructF {
   ty::Struct::Fields* fs;
@@ -1445,8 +1501,8 @@ template <typename T>
 // for backward compatibility, assert that a packed struct is packed
 // this breaks if users don't declare structs in a way that would be packed without the packed annotation
 // but allows all structs that happen to be packed to share the same memcpy logic
-#define DEFINE_PACKED_HSTORE_STRUCT(T, FIELDS...) \
-  DEFINE_STRUCT(T, FIELDS); \
+#define DEFINE_PACKED_HSTORE_STRUCT(T, ...) \
+  DEFINE_STRUCT(T, __VA_ARGS__); \
   static_assert(::hobbes::storage::storeStdLayoutTuple<T::as_tuple_type>::can_memcpy, "declaration of packed struct found inconsistent with internal padding (add explicit fields or re-order fields to eliminate padding)")
 
 // support storing "struct views" (select fields / const accessor functions) out of a type
@@ -1476,31 +1532,31 @@ template <typename T, typename F>
 #define PRIV_HSTORE_DSV_SIZE(f)      + store< PRIV_HSTORE_DSV_T(f) >::size(PRIV_HSTORE_DSV_READ(f))
 #define PRIV_HSTORE_DSV_WRITE(f)     && store< PRIV_HSTORE_DSV_T(f) >::write(p, PRIV_HSTORE_DSV_READ(f))
 
-#define DEFINE_HSTORE_STRUCT_VIEW(T, FIELDS...) \
+#define DEFINE_HSTORE_STRUCT_VIEW(T, ...) \
   namespace hobbes { namespace storage { \
     template <> \
       struct store<T> { \
         typedef T SelfT; \
         static std::string storageName() { return #T; } \
-        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, FIELDS); return ty::record(fs); } \
-        static size_t size(const T& x) { return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, FIELDS); } \
-        static bool write(wpipe& p, const T& x) { return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, FIELDS); } \
+        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, __VA_ARGS__); return ty::record(fs); } \
+        static size_t size(const T& x) { return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, __VA_ARGS__); } \
+        static bool write(wpipe& p, const T& x) { return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, __VA_ARGS__); } \
       }; \
     template <> \
       struct store<T*> { \
         typedef T SelfT; \
         static std::string storageName() { return #T; } \
-        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, FIELDS); return ty::record(fs); } \
-        static size_t size(const T* px) { const T& x = *px; return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, FIELDS); } \
-        static bool write(wpipe& p, const T* px) { const T& x = *px; return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, FIELDS); } \
+        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, __VA_ARGS__); return ty::record(fs); } \
+        static size_t size(const T* px) { const T& x = *px; return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, __VA_ARGS__); } \
+        static bool write(wpipe& p, const T* px) { const T& x = *px; return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, __VA_ARGS__); } \
       }; \
     template <> \
       struct store<const T*> { \
         typedef T SelfT; \
         static std::string storageName() { return #T; } \
-        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, FIELDS); return ty::record(fs); } \
-        static size_t size(const T* px) { const T& x = *px; return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, FIELDS); } \
-        static bool write(wpipe& p, const T* px) { const T& x = *px; return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, FIELDS); } \
+        static ty::desc type() { ty::Struct::Fields fs; PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_DEF_FIELD, __VA_ARGS__); return ty::record(fs); } \
+        static size_t size(const T* px) { const T& x = *px; return 0 PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_SIZE, __VA_ARGS__); } \
+        static bool write(wpipe& p, const T* px) { const T& x = *px; return true PRIV_HPPF_MAPL(PRIV_HSTORE_DSV_WRITE, __VA_ARGS__); } \
       }; \
   }}
 #define HSTORE_MAKE_FRIEND template <typename _> friend class hobbes::storage::store;
@@ -2139,14 +2195,14 @@ template <size_t N>
 
 // create statement groups
 #define DECLARE_STORAGE_GROUP(NAME, cm)                     extern ::hobbes::storage::StorageGroup<PRIV_HPPF_TSTR(#NAME),cm> NAME
-#define DEFINE_STORAGE_GROUP(NAME, pagec, qos, cm, ARGS...) ::hobbes::storage::StorageGroup<PRIV_HPPF_TSTR(#NAME),cm> NAME(pagec, qos, ## ARGS)
+#define DEFINE_STORAGE_GROUP(NAME, pagec, qos, cm, ...) ::hobbes::storage::StorageGroup<PRIV_HPPF_TSTR(#NAME),cm> NAME(pagec, qos, ## __VA_ARGS__)
 
 // record some data
-#define APPLY_HSTORE_STMT(GROUP, NAME, FLAGS, FMTSTR, ARGS...) \
-  ::hobbes::storage::write(&GROUP, ({static_assert(::hobbes::storage::maxVarRef(FMTSTR) <= decltype(::hobbes::storage::makePayloadTypes(ARGS))::count, "Log format string and payload arity mismatch"); ::hobbes::storage::StorageStatement<decltype(GROUP),&GROUP,PRIV_HPPF_TSTR(__FILE__),__LINE__,PRIV_HPPF_TSTR(#NAME),FLAGS,PRIV_HPPF_TSTR(FMTSTR),decltype(::hobbes::storage::makePayloadTypes(ARGS))>::id;}), ## ARGS)
+#define APPLY_HSTORE_STMT(GROUP, NAME, FLAGS, FMTSTR, ...) \
+  ::hobbes::storage::write(&GROUP, ({static_assert(::hobbes::storage::maxVarRef(FMTSTR) <= decltype(::hobbes::storage::makePayloadTypes(__VA_ARGS__))::count, "Log format string and payload arity mismatch"); ::hobbes::storage::StorageStatement<decltype(GROUP),&GROUP,PRIV_HPPF_TSTR(__FILE__),__LINE__,PRIV_HPPF_TSTR(#NAME),FLAGS,PRIV_HPPF_TSTR(FMTSTR),decltype(::hobbes::storage::makePayloadTypes(__VA_ARGS__))>::id;}), ## __VA_ARGS__)
 
-#define HSTORE(GROUP, NAME, ARGS...)       APPLY_HSTORE_STMT(GROUP, NAME, 0,     "", ## ARGS)
-#define HLOG(GROUP, NAME, FMTSTR, ARGS...) APPLY_HSTORE_STMT(GROUP, NAME, 1, FMTSTR, ## ARGS)
+#define HSTORE(GROUP, NAME, ...)       APPLY_HSTORE_STMT(GROUP, NAME, 0,     "", ## __VA_ARGS__)
+#define HLOG(GROUP, NAME, FMTSTR, ...) APPLY_HSTORE_STMT(GROUP, NAME, 1, FMTSTR, ## __VA_ARGS__)
 
 // run a process to read transaction data
 struct statement {
@@ -2211,7 +2267,12 @@ public:
       }
     }
     fname = "." + fname + ".txn";
-    this->fd = ::open(fname.c_str(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#if defined(_MSC_VER)
+    int pmode =  (_S_IREAD | _S_IWRITE);
+#else
+    int pmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+#endif    
+    this->fd = ::open(fname.c_str(), O_RDWR | O_CREAT, pmode);
 
     if (this->fd < 0) {
       throw std::runtime_error("Unable to open transaction persistence file: " + fname + " (" + std::string(strerror(errno)) + ")");

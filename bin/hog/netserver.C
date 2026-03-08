@@ -3,13 +3,14 @@
 
 #include <hobbes/ipc/net.H>
 
-#if defined(__MINGW64__)
-#include <winsock2.h>
+#if defined(__MINGW64__) || defined(_MSC_VER)
+#include <winsock2.h> // accept
 #include <ws2tcpip.h>
+#include <io.h> // close
 #else
-#include <sys/socket.h>
-#endif
+#include <sys/socket.h> // accept
 #include <unistd.h> // close
+#endif
 
 namespace hog {
 

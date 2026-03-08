@@ -277,7 +277,7 @@ public:
     if (llvm::Value* cr = compileConstRecord(vs, rty)) {
       return cr;
     } else {
-      llvm::Type* llvmRTy = toLLVM(mrty, false);
+      llvm::Type* llvmRTy = toLLVM(mrty, false); // maybe replace it with translateTypeF(false).with(rty) to avoid switchOf overhead
       llvm::Value* p = compileAllocStmt(sizeOf(mrty), alignment(mrty), ptrType()); // ptrType() is the same as toLLVM(mrty, true)
 
       for (const auto &v : vs) {
@@ -511,7 +511,7 @@ public:
     }
 
     // switched to using packed records and manually-determined padding
-    llvm::Type* llvmRTy = toLLVM(mrty, false);
+    llvm::Type* llvmRTy = toLLVM(mrty, false);  // maybe replace it with translateTypeF(false).with(rty) to avoid switchOf overhead
     llvm::Value* rp = structFieldPtr(llvmRTy, rec, rty->alignedIndex(v->field()));
 
     return withContext([&](auto&) -> llvm::Value* {

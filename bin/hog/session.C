@@ -3,17 +3,19 @@
 #include <thread>
 #include <mutex>
 
-#if defined(__MINGW64__)
+#include <hobbes/util/perf.H>
+#include <hobbes/util/str.H>
+
+#include "session.H"   // includes both winsock2.h and windows.h (via storage.H), so should go before any other headers which include windows.h
+#include <hobbes/fregion.H> // includes windows.h, so goes after session.H
+
+#if defined(__MINGW64__) || defined(_MSC_VER)
+#define NOMINMAX      // disable min/max macro defined in windows.h
 #include <windows.h>  // FindFirstFile(), FindNextFile()
 #else
 #include <glob.h> // glob()
 #endif
 
-#include <hobbes/util/perf.H>
-#include <hobbes/util/str.H>
-#include <hobbes/fregion.H>
-
-#include "session.H"
 #include "boot/gen/boot.H"
 
 #define out std::cout << "[" << hobbes::showDateTime(hobbes::time() / 1000) << "]: "
@@ -183,10 +185,10 @@ private:
 
 #if defined(__MINGW64__) || defined(_MSC_VER)
   static writer* findMatchingFile(const std::string& dirPfx, storage::CommitMethod cm, const storage::statements& stmts) {
-    WIN32_FIND_DATA ffd;
+    WIN32_FIND_DATAA ffd;
     const char* pattern = (dirPfx + "*.log").c_str();
     HANDLE hFind = INVALID_HANDLE_VALUE;
-    hFind = FindFirstFile(pattern, &ffd);
+    hFind = FindFirstFileA(pattern, &ffd);
     if (hFind != INVALID_HANDLE_VALUE) {
       do {
         writer* f = nullptr;
@@ -200,7 +202,7 @@ private:
         } catch (...) {
           delete f;
         }        
-      } while (FindNextFile(hFind, &ffd) != 0);
+      } while (FindNextFileA(hFind, &ffd) != 0);
     }
     return nullptr; // couldn't find any matching file
   }

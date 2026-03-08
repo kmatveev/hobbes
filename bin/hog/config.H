@@ -10,10 +10,14 @@
 #include <set>
 #include <string>
 #include <vector>
+
+// stat.H includes storage.H, which on windows includes winsock.h, which must always be before windows.h
+// since series.H includes windows.h (via slnmap.H -> fregion.H), we must include stat.H before series.H
+#include "stat.H"
+
 #include <hobbes/db/series.H>
 #include <hobbes/util/str.H>
 
-#include "stat.H"
 
 namespace hog {
 

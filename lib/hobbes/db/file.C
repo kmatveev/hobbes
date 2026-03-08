@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #if defined(__MINGW64__)
+#define NOMINMAX     // disable min/max macro defined in windows.h
 #include <windows.h>
 #else
 #endif

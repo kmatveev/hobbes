@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#if defined(__MINGW64__)
+#if defined(__MINGW64__) || defined(_MSC_VER)
 #include <windows.h>  // FindFirstFile(), FindNextFile()
 #else
 #include <glob.h> // glob()
@@ -29,6 +29,13 @@
 #include "session.H"
 #include "stat.H"
 #include "out.H"
+
+#if defined(_MSC_VER)
+unsigned int sleep(unsigned int seconds) {
+    Sleep(seconds*1000);
+    return 0;
+}
+#endif
 
 using namespace hobbes;
 
@@ -101,10 +108,10 @@ void sendSegmentFiles(NetConnection& connection, const std::string& localdir) {
   OrderedSegFiles segfiles;
 
  #if defined(__MINGW64__) || defined(_MSC_VER)
-  WIN32_FIND_DATA ffd;
+  WIN32_FIND_DATAA ffd;
   const char* pattern = (localdir + "/segment-*.gz").c_str();
   HANDLE hFind = INVALID_HANDLE_VALUE;
-  hFind = FindFirstFile(pattern, &ffd);
+  hFind = FindFirstFileA(pattern, &ffd);
   if (hFind != INVALID_HANDLE_VALUE) {
     do {
       struct stat st;
@@ -113,7 +120,7 @@ void sendSegmentFiles(NetConnection& connection, const std::string& localdir) {
       } else {
         out() << "couldn't stat '" << ffd.cFileName << "' (" << strerror(errno) << ")" << std::endl;
       }
-    } while (FindNextFile(hFind, &ffd) != 0);
+    } while (FindNextFileA(hFind, &ffd) != 0);
   }
 #else 
   glob_t g;
@@ -337,8 +344,8 @@ struct BatchSendSession {
       for (const auto & destination : destinations) {
         // we should save the init message to a special file, else pick a generic segment file name
         std::string pubfilename = destination.localdir + "/" + ((this->c == 0) ? "init.gz" : segmentFileName(this->c));
-#if defined(__MINGW64__)
-        auto rc = CreateHardLink(pubfilename.c_str(), this->tempfilename.c_str(), NULL);
+#if defined(__MINGW64__) || defined(_MSC_VER)
+        auto rc = CreateHardLinkA(pubfilename.c_str(), this->tempfilename.c_str(), NULL);
 #else
         auto rc = link(this->tempfilename.c_str(), pubfilename.c_str());
 #endif
@@ -363,10 +370,10 @@ struct BatchSendSession {
   bool completed() const {
     return std::all_of(destinations.begin(), destinations.end(), [](const Destination& d) {
  #if defined(__MINGW64__) || defined(_MSC_VER)
-      WIN32_FIND_DATA ffd;
+      WIN32_FIND_DATAA ffd;
       const char* pattern = (d.localdir + "/segment-*.gz").c_str();
       HANDLE hFind = INVALID_HANDLE_VALUE;
-      hFind = FindFirstFile(pattern, &ffd);
+      hFind = FindFirstFileA(pattern, &ffd);
       return (hFind == INVALID_HANDLE_VALUE);
 #else       
       glob_t g;
