@@ -26,3 +26,5 @@ Debug/
 *.sln
 *.zip
 *.dll
+hog.exe
+libhobbes-pic.a
